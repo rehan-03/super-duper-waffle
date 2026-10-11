@@ -1,0 +1,47 @@
+{
+  "name": "algolearn",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "predev": "npm run build -w @algolearn/shared",
+    "worker": "npm run worker -w @algolearn/api",
+    "dev": "concurrently -k -n api,web \"npm run dev -w @algolearn/api\" \"npm run dev -w @algolearn/web\"",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run build -w @algolearn/shared && npm run test:unit && npm run test:integration",
+    "test:e2e": "playwright test",
+    "db:generate": "npm run db:generate -w @algolearn/api",
+    "db:migrate": "npm run db:migrate -w @algolearn/api",
+    "db:seed": "npm run db:seed -w @algolearn/api",
+    "setup:local": "node scripts/setup-local.mjs",
+    "db:stop": "node scripts/stop-local.mjs",
+    "bootstrap:admin": "npm run bootstrap:admin -w @algolearn/api",
+    "test:unit": "vitest run",
+    "test:integration": "node scripts/prepare-test-db.mjs && npm run test -w @algolearn/api",
+    "pretest:e2e": "npm run build -w @algolearn/shared && node scripts/prepare-test-db.mjs",
+    "backup:local": "node scripts/backup-local.mjs",
+    "restore:drill": "node scripts/restore-drill.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.58.2",
+    "concurrently": "^9.2.1",
+    "prettier": "3.6.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "mysql2": "3.24.5",
+    "deepmerge-ts": "8.0.2",
+    "dompurify": "3.4.16"
+  }
+}

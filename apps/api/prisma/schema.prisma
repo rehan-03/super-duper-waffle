@@ -1,0 +1,423 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  engineType = "client"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  STUDENT
+  FACULTY
+  ADMIN
+}
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DEACTIVATED
+}
+enum TokenPurpose {
+  ACTIVATION
+  RESET
+}
+enum CourseStatus {
+  ACTIVE
+  ARCHIVED
+}
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  name String
+  role Role
+  status UserStatus @default(PENDING)
+  passwordHash String?
+  createdAt DateTime @default(now())
+  sessions Session[]
+  tokens AuthToken[]
+  memberships CourseMembership[]
+  auditEvents AuditEvent[]
+  acknowledgments LessonAcknowledgment[]
+  quizAttempts QuizAttempt[]
+  drafts CodeDraft[]
+  submissions Submission[]
+}
+model Session {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  tokenHash String @unique
+  csrfToken String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,expiresAt])
+}
+model AuthToken {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  tokenHash String @unique
+  purpose TokenPurpose
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,purpose,expiresAt])
+}
+model CurriculumSource {
+  id String @id @default(uuid()) @db.Uuid
+  filename String @unique
+  sha256 String
+  pageCount Int
+  pages SourcePage[]
+  subjects Subject[]
+}
+model SourcePage {
+  id String @id @default(uuid()) @db.Uuid
+  sourceId String @db.Uuid
+  source CurriculumSource @relation(fields:[sourceId],references:[id])
+  number Int
+  text String
+  unitReferences UnitSourceReference[]
+  subjectReferences SubjectSourceReference[]
+  @@unique([sourceId,number])
+}
+model AcademicYear {
+  id String @id @default(uuid()) @db.Uuid
+  pattern String
+  number Int
+  label String
+  semesters Semester[]
+  subjects Subject[]
+  @@unique([pattern,number])
+}
+model Semester {
+  id String @id @default(uuid()) @db.Uuid
+  academicYearId String @db.Uuid
+  academicYear AcademicYear @relation(fields:[academicYearId],references:[id])
+  number Int
+  label String
+  subjects Subject[]
+  @@unique([academicYearId,number])
+}
+model Subject {
+  id String @id @default(uuid()) @db.Uuid
+  sourceId String @db.Uuid
+  source CurriculumSource @relation(fields:[sourceId],references:[id])
+  pattern String
+  code String
+  observedCode String
+  title String
+  academicYearId String @db.Uuid
+  academicYear AcademicYear @relation(fields:[academicYearId],references:[id])
+  semesterId String? @db.Uuid
+  semester Semester? @relation(fields:[semesterId],references:[id])
+  pathway String
+  startPage Int
+  endPage Int
+  issues Json
+  units CurriculumUnit[]
+  courses CourseSubject[]
+  sourceReferences SubjectSourceReference[]
+  learningTopics CourseTopic[]
+  @@unique([sourceId,code])
+  @@index([academicYearId,semesterId])
+}
+model CurriculumUnit {
+  id String @id @default(uuid()) @db.Uuid
+  subjectId String @db.Uuid
+  subject Subject @relation(fields:[subjectId],references:[id])
+  number Int
+  title String
+  sourcePages Json
+  topics CurriculumTopic[]
+  sourceReferences UnitSourceReference[]
+  learningTopics CourseTopic[]
+  @@unique([subjectId,number])
+}
+model SubjectSourceReference {
+  subjectId String @db.Uuid
+  sourcePageId String @db.Uuid
+  subject Subject @relation(fields:[subjectId],references:[id])
+  sourcePage SourcePage @relation(fields:[sourcePageId],references:[id])
+  @@id([subjectId,sourcePageId])
+}
+model UnitSourceReference {
+  unitId String @db.Uuid
+  sourcePageId String @db.Uuid
+  unit CurriculumUnit @relation(fields:[unitId],references:[id])
+  sourcePage SourcePage @relation(fields:[sourcePageId],references:[id])
+  @@id([unitId,sourcePageId])
+}
+model CurriculumTopic {
+  id String @id @default(uuid()) @db.Uuid
+  unitId String @db.Uuid
+  unit CurriculumUnit @relation(fields:[unitId],references:[id])
+  position Int
+  text String
+  @@unique([unitId,position])
+}
+model Course {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  title String
+  term String
+  status CourseStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  memberships CourseMembership[]
+  subjects CourseSubject[]
+  publishedRevisionId String? @db.Uuid
+  publishedRevision CourseRevision? @relation("PublishedCourse",fields:[publishedRevisionId],references:[id])
+  revisions CourseRevision[] @relation("CourseRevisions")
+  drafts CodeDraft[]
+  submissions Submission[]
+}
+model CourseSubject {
+  courseId String @db.Uuid
+  subjectId String @db.Uuid
+  course Course @relation(fields:[courseId],references:[id])
+  subject Subject @relation(fields:[subjectId],references:[id])
+  @@id([courseId,subjectId])
+}
+model CourseMembership {
+  id String @id @default(uuid()) @db.Uuid
+  courseId String @db.Uuid
+  userId String @db.Uuid
+  memberRole Role
+  course Course @relation(fields:[courseId],references:[id])
+  user User @relation(fields:[userId],references:[id])
+  createdAt DateTime @default(now())
+  @@unique([courseId,userId])
+  @@index([userId])
+}
+model AuditEvent {
+  id String @id @default(uuid()) @db.Uuid
+  actorId String? @db.Uuid
+  actor User? @relation(fields:[actorId],references:[id])
+  action String
+  entityType String
+  entityId String
+  metadata Json
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+enum RevisionStatus {
+  DRAFT
+  PUBLISHED
+}
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+enum AttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+enum Language {
+  c
+  cpp
+  java
+  python
+}
+enum SubmissionMode {
+  CUSTOM
+  SAMPLES
+  SUBMIT
+}
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  FINISHED
+  EXECUTION_FAILED
+}
+model CourseRevision {
+  id String @id @default(uuid()) @db.Uuid
+  courseId String @db.Uuid
+  course Course @relation("CourseRevisions",fields:[courseId],references:[id])
+  number Int
+  status RevisionStatus @default(DRAFT)
+  publishedAt DateTime?
+  publishedIn Course[] @relation("PublishedCourse")
+  topics CourseTopic[]
+  submissions Submission[]
+  createdAt DateTime @default(now())
+  @@unique([courseId,number])
+}
+model CourseTopic {
+  id String @id @default(uuid()) @db.Uuid
+  revisionId String @db.Uuid
+  revision CourseRevision @relation(fields:[revisionId],references:[id])
+  key String
+  title String
+  unitLabel String
+  position Int
+  lesson String
+  objectives String[]
+  prerequisiteKeys String[]
+  reviewed Boolean @default(false)
+  sourceSubjectId String @db.Uuid
+  sourceSubject Subject @relation(fields:[sourceSubjectId],references:[id])
+  sourceUnitId String? @db.Uuid
+  sourceUnit CurriculumUnit? @relation(fields:[sourceUnitId],references:[id])
+  sourcePages Int[]
+  questions Question[]
+  problems Problem[]
+  acknowledgments LessonAcknowledgment[]
+  attempts QuizAttempt[]
+  @@unique([revisionId,key])
+  @@unique([revisionId,position])
+}
+model Question {
+  id String @id @default(uuid()) @db.Uuid
+  familyId String @default(uuid()) @db.Uuid
+  revisionNumber Int @default(1)
+  topicId String @db.Uuid
+  topic CourseTopic @relation(fields:[topicId],references:[id])
+  objective String
+  difficulty Difficulty
+  prompt String
+  options Json
+  correctOption Int
+  explanation String
+  reviewed Boolean @default(false)
+  quizItems QuizItem[]
+  @@unique([familyId,revisionNumber])
+  @@index([topicId,difficulty])
+}
+model Problem {
+  id String @id @default(uuid()) @db.Uuid
+  familyId String @default(uuid()) @db.Uuid
+  revisionNumber Int @default(1)
+  topicId String @db.Uuid
+  topic CourseTopic @relation(fields:[topicId],references:[id])
+  title String
+  statement String
+  starterCodes Json
+  reviewed Boolean @default(false)
+  tests TestCase[]
+  drafts CodeDraft[]
+  submissions Submission[]
+  @@unique([familyId,revisionNumber])
+}
+model TestCase {
+  id String @id @default(uuid()) @db.Uuid
+  problemId String @db.Uuid
+  problem Problem @relation(fields:[problemId],references:[id])
+  position Int
+  input String
+  expectedOutput String
+  hidden Boolean
+  cases SubmissionCase[]
+  @@unique([problemId,position])
+}
+model LessonAcknowledgment {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @db.Uuid
+  student User @relation(fields:[studentId],references:[id])
+  topicId String @db.Uuid
+  topic CourseTopic @relation(fields:[topicId],references:[id])
+  createdAt DateTime @default(now())
+  @@unique([studentId,topicId])
+}
+model QuizAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @db.Uuid
+  student User @relation(fields:[studentId],references:[id])
+  topicId String @db.Uuid
+  topic CourseTopic @relation(fields:[topicId],references:[id])
+  status AttemptStatus @default(IN_PROGRESS)
+  score Float?
+  rulesVersion String @default("v1")
+  createdAt DateTime @default(now())
+  submittedAt DateTime?
+  items QuizItem[]
+  @@index([studentId,topicId,submittedAt])
+}
+model QuizItem {
+  id String @id @default(uuid()) @db.Uuid
+  attemptId String @db.Uuid
+  attempt QuizAttempt @relation(fields:[attemptId],references:[id])
+  questionId String @db.Uuid
+  question Question @relation(fields:[questionId],references:[id])
+  position Int
+  selectedOption Int?
+  isCorrect Boolean?
+  version Int @default(0)
+  @@unique([attemptId,position])
+  @@unique([attemptId,questionId])
+}
+model CodeDraft {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @db.Uuid
+  student User @relation(fields:[studentId],references:[id])
+  courseId String @db.Uuid
+  course Course @relation(fields:[courseId],references:[id])
+  problemId String @db.Uuid
+  problem Problem @relation(fields:[problemId],references:[id])
+  language Language
+  source String
+  version Int @default(0)
+  updatedAt DateTime @updatedAt
+  @@unique([studentId,courseId,problemId,language])
+}
+model Submission {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @db.Uuid
+  student User @relation(fields:[studentId],references:[id])
+  courseId String @db.Uuid
+  course Course @relation(fields:[courseId],references:[id])
+  courseRevisionId String @db.Uuid
+  courseRevision CourseRevision @relation(fields:[courseRevisionId],references:[id])
+  problemId String @db.Uuid
+  problem Problem @relation(fields:[problemId],references:[id])
+  language Language
+  mode SubmissionMode
+  source String
+  customInput String?
+  idempotencyKey String
+  status ExecutionStatus @default(QUEUED)
+  verdict String?
+  passedCount Int @default(0)
+  totalCount Int
+  createdAt DateTime @default(now())
+  finishedAt DateTime?
+  cases SubmissionCase[]
+  job ExecutionJob?
+  @@unique([studentId,idempotencyKey])
+  @@index([studentId,createdAt])
+  @@index([status,createdAt])
+}
+model SubmissionCase {
+  id String @id @default(uuid()) @db.Uuid
+  submissionId String @db.Uuid
+  submission Submission @relation(fields:[submissionId],references:[id])
+  testCaseId String? @db.Uuid
+  testCase TestCase? @relation(fields:[testCaseId],references:[id])
+  position Int
+  judgeToken String?
+  verdict String?
+  output String?
+  diagnostics String?
+  time String?
+  memory Int?
+  @@unique([submissionId,position])
+}
+model ExecutionJob {
+  id String @id @default(uuid()) @db.Uuid
+  submissionId String @unique @db.Uuid
+  submission Submission @relation(fields:[submissionId],references:[id])
+  state String @default("QUEUED")
+  attempts Int @default(0)
+  leaseUntil DateTime?
+  deadlineAt DateTime
+  lastError String?
+  owner String?
+  @@index([state,leaseUntil])
+}
+model ServiceHeartbeat {
+  name String @id
+  updatedAt DateTime @updatedAt
+  healthy Boolean
+  details Json
+}

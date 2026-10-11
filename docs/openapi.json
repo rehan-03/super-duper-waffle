@@ -1,0 +1,4553 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AlgoLearn implementation API",
+    "version": "0.1.0",
+    "description": "Same-origin cookie API. Flattened topic/problem IDs resolve course scope on the server; this replaces redundant course IDs in illustrative PRD paths. JSON request maximum 2 MiB. Byte caps are enforced independently. Extended list/report shapes are described in api_contract.md."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "get_health",
+        "summary": "GET /health",
+        "tags": ["Learning"],
+        "security": [],
+        "x-roles": [],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "get_me",
+        "summary": "GET /me",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    },
+                    "csrfToken": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["user", "csrfToken"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/password": {
+      "patch": {
+        "operationId": "patch_me_password",
+        "summary": "PATCH /me/password",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses": {
+      "get": {
+        "operationId": "get_courses",
+        "summary": "GET /courses",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "courses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Course"
+                      }
+                    }
+                  },
+                  "required": ["courses"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/curriculum": {
+      "get": {
+        "operationId": "get_courses_id_curriculum",
+        "summary": "GET /courses/{id}/curriculum",
+        "tags": ["Curriculum"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "course": {
+                      "$ref": "#/components/schemas/Course"
+                    },
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subject"
+                      }
+                    }
+                  },
+                  "required": ["course", "subjects"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/curriculum": {
+      "get": {
+        "operationId": "get_curriculum",
+        "summary": "GET /curriculum",
+        "tags": ["Curriculum"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subject"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["subjects", "total", "page"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/curriculum/{id}": {
+      "get": {
+        "operationId": "get_curriculum_id",
+        "summary": "GET /curriculum/{id}",
+        "tags": ["Curriculum"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "$ref": "#/components/schemas/Subject"
+                    }
+                  },
+                  "required": ["subject"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/subjects/{subjectId}": {
+      "get": {
+        "operationId": "get_courses_courseId_subjects_subjectId",
+        "summary": "GET /courses/{courseId}/subjects/{subjectId}",
+        "tags": ["Curriculum"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "$ref": "#/components/schemas/Subject"
+                    }
+                  },
+                  "required": ["subject"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/overview": {
+      "get": {
+        "operationId": "get_admin_overview",
+        "summary": "GET /admin/overview",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "operationId": "get_admin_users",
+        "summary": "GET /admin/users",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["users", "total", "page"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_admin_users",
+        "summary": "POST /admin/users",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Invite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/invitation": {
+      "post": {
+        "operationId": "post_admin_users_id_invitation",
+        "summary": "POST /admin/users/{id}/invitation",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{id}": {
+      "patch": {
+        "operationId": "patch_admin_users_id",
+        "summary": "PATCH /admin/users/{id}",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/courses": {
+      "post": {
+        "operationId": "post_admin_courses",
+        "summary": "POST /admin/courses",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/courses/{id}": {
+      "patch": {
+        "operationId": "patch_admin_courses_id",
+        "summary": "PATCH /admin/courses/{id}",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/courses/{id}/memberships": {
+      "post": {
+        "operationId": "post_admin_courses_id_memberships",
+        "summary": "POST /admin/courses/{id}/memberships",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Membership"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_admin_courses_id_memberships",
+        "summary": "GET /admin/courses/{id}/memberships",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/courses/{id}/memberships/{membershipId}": {
+      "delete": {
+        "operationId": "delete_admin_courses_id_memberships_membershipId",
+        "summary": "DELETE /admin/courses/{id}/memberships/{membershipId}",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful response"
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/audit-events": {
+      "get": {
+        "operationId": "get_admin_audit_events",
+        "summary": "GET /admin/audit-events",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "post_auth_login",
+        "summary": "POST /auth/login",
+        "tags": ["Authentication"],
+        "security": [],
+        "x-roles": [],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    },
+                    "csrfToken": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["user", "csrfToken"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "post_auth_logout",
+        "summary": "POST /auth/logout",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful response"
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/activate": {
+      "post": {
+        "operationId": "post_auth_activate",
+        "summary": "POST /auth/activate",
+        "tags": ["Authentication"],
+        "security": [],
+        "x-roles": [],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenPassword"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password-reset/confirm": {
+      "post": {
+        "operationId": "post_auth_password_reset_confirm",
+        "summary": "POST /auth/password-reset/confirm",
+        "tags": ["Authentication"],
+        "security": [],
+        "x-roles": [],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenPassword"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password-reset": {
+      "post": {
+        "operationId": "post_auth_password_reset",
+        "summary": "POST /auth/password-reset",
+        "tags": ["Authentication"],
+        "security": [],
+        "x-roles": [],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reset"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/student/dashboard": {
+      "get": {
+        "operationId": "get_student_dashboard",
+        "summary": "GET /student/dashboard",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/progress": {
+      "get": {
+        "operationId": "get_courses_id_progress",
+        "summary": "GET /courses/{id}/progress",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/recommendations": {
+      "get": {
+        "operationId": "get_courses_id_recommendations",
+        "summary": "GET /courses/{id}/recommendations",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/topics": {
+      "get": {
+        "operationId": "get_courses_id_topics",
+        "summary": "GET /courses/{id}/topics",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "topics": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Topic"
+                      }
+                    }
+                  },
+                  "required": ["topics"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics/{id}": {
+      "get": {
+        "operationId": "get_topics_id",
+        "summary": "GET /topics/{id}",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "topic": {
+                      "$ref": "#/components/schemas/Topic"
+                    },
+                    "problems": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["id", "title"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "progress": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Progress"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["topic", "problems", "progress"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics/{id}/acknowledgment": {
+      "post": {
+        "operationId": "post_topics_id_acknowledgment",
+        "summary": "POST /topics/{id}/acknowledgment",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics/{id}/quiz-attempts": {
+      "post": {
+        "operationId": "post_topics_id_quiz_attempts",
+        "summary": "POST /topics/{id}/quiz-attempts",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attemptId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": ["attemptId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quiz-attempts/{id}": {
+      "get": {
+        "operationId": "get_quiz_attempts_id",
+        "summary": "GET /quiz-attempts/{id}",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attempt": {
+                      "$ref": "#/components/schemas/QuizAttempt"
+                    }
+                  },
+                  "required": ["attempt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quiz-attempts/{id}/answers/{itemId}": {
+      "put": {
+        "operationId": "put_quiz_attempts_id_answers_itemId",
+        "summary": "PUT /quiz-attempts/{id}/answers/{itemId}",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["version"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quiz-attempts/{id}/submit": {
+      "post": {
+        "operationId": "post_quiz_attempts_id_submit",
+        "summary": "POST /quiz-attempts/{id}/submit",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attemptId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "score": {
+                      "type": ["number", "null"],
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "progress": {
+                      "$ref": "#/components/schemas/Progress"
+                    }
+                  },
+                  "required": ["attemptId", "score", "progress"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics/{id}/quiz-history": {
+      "get": {
+        "operationId": "get_topics_id_quiz_history",
+        "summary": "GET /topics/{id}/quiz-history",
+        "tags": ["Learning"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/courses/{id}/revisions": {
+      "get": {
+        "operationId": "get_faculty_courses_id_revisions",
+        "summary": "GET /faculty/courses/{id}/revisions",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_faculty_courses_id_revisions",
+        "summary": "POST /faculty/courses/{id}/revisions",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/revisions/{id}/topics": {
+      "post": {
+        "operationId": "post_faculty_revisions_id_topics",
+        "summary": "POST /faculty/revisions/{id}/topics",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/topics/{id}": {
+      "patch": {
+        "operationId": "patch_faculty_topics_id",
+        "summary": "PATCH /faculty/topics/{id}",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/revisions/{id}/topic-order": {
+      "put": {
+        "operationId": "put_faculty_revisions_id_topic_order",
+        "summary": "PUT /faculty/revisions/{id}/topic-order",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicOrder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/topics/{id}/questions": {
+      "post": {
+        "operationId": "post_faculty_topics_id_questions",
+        "summary": "POST /faculty/topics/{id}/questions",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/questions/{id}": {
+      "patch": {
+        "operationId": "patch_faculty_questions_id",
+        "summary": "PATCH /faculty/questions/{id}",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/topics/{id}/problems": {
+      "post": {
+        "operationId": "post_faculty_topics_id_problems",
+        "summary": "POST /faculty/topics/{id}/problems",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProblemDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/problems/{id}": {
+      "patch": {
+        "operationId": "patch_faculty_problems_id",
+        "summary": "PATCH /faculty/problems/{id}",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProblemDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/revisions/{id}/publish": {
+      "post": {
+        "operationId": "post_faculty_revisions_id_publish",
+        "summary": "POST /faculty/revisions/{id}/publish",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/courses/{id}/students": {
+      "get": {
+        "operationId": "get_faculty_courses_id_students",
+        "summary": "GET /faculty/courses/{id}/students",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/courses/{id}/analytics": {
+      "get": {
+        "operationId": "get_faculty_courses_id_analytics",
+        "summary": "GET /faculty/courses/{id}/analytics",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faculty/courses/{id}/students/{studentId}": {
+      "get": {
+        "operationId": "get_faculty_courses_id_students_studentId",
+        "summary": "GET /faculty/courses/{id}/students/{studentId}",
+        "tags": ["Faculty"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "studentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/coding/config": {
+      "get": {
+        "operationId": "get_coding_config",
+        "summary": "GET /coding/config",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/problems/{id}": {
+      "get": {
+        "operationId": "get_problems_id",
+        "summary": "GET /problems/{id}",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "problem": {
+                      "$ref": "#/components/schemas/Problem"
+                    }
+                  },
+                  "required": ["problem"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/problems/{id}/drafts/{language}": {
+      "get": {
+        "operationId": "get_problems_id_drafts_language",
+        "summary": "GET /problems/{id}/drafts/{language}",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "language",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["c", "cpp", "java", "python"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_problems_id_drafts_language",
+        "summary": "PUT /problems/{id}/drafts/{language}",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "language",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["c", "cpp", "java", "python"]
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["version"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Draft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/problems/{id}/submissions": {
+      "post": {
+        "operationId": "post_problems_id_submissions",
+        "summary": "POST /problems/{id}/submissions",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured APP_ORIGIN."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Read from authenticated /me or login response."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "submissionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "RUNNING",
+                        "FINISHED",
+                        "EXECUTION_FAILED"
+                      ]
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["submissionId", "status", "pollAfterMs"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_problems_id_submissions",
+        "summary": "GET /problems/{id}/submissions",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/submissions/{id}": {
+      "get": {
+        "operationId": "get_submissions_id",
+        "summary": "GET /submissions/{id}",
+        "tags": ["Execution"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["STUDENT", "FACULTY", "ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "submission": {
+                      "$ref": "#/components/schemas/Submission"
+                    }
+                  },
+                  "required": ["submission"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/health": {
+      "get": {
+        "operationId": "get_admin_health",
+        "summary": "GET /admin/health",
+        "tags": ["Administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-roles": ["ADMIN"],
+        "description": "Course and ownership authorization is enforced from the referenced object. Student reads require published content. Correct quiz answers are present only after submission; hidden execution cases expose only position/hidden/verdict. Lists are bounded.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "operationId": "post_auth_signup",
+        "summary": "Register a pending student and request email activation",
+        "tags": ["Authentication"],
+        "security": [],
+        "x-roles": [],
+        "description": "Generic accepted response for new and existing emails. Never overwrites existing accounts or grants staff roles/enrollment. Pending students receive a single-use 24-hour activation link; password is set after verification. Rate limited, exact Origin required.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Registration request accepted; does not disclose account existence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["message", "delivery"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "delivery": {
+                      "type": "string",
+                      "enum": ["development-outbox", "email"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "400 malformed JSON; 401 no session; 403 role/Origin/CSRF; 404 missing/inaccessible object; 409 conflict/archived/idempotency; 413 body limit; 422 validation/publication; 429 rate/queue limits; 503 unavailable infrastructure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "algolearn_session"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "role": {
+            "type": "string",
+            "enum": ["STUDENT", "FACULTY", "ADMIN"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACTIVE", "DEACTIVATED"]
+          }
+        },
+        "required": ["id", "email", "name", "role", "status"],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "fieldErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "Progress": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "evidenceCount": {
+            "type": "integer"
+          },
+          "familyCount": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "UNASSESSED",
+              "INSUFFICIENT_EVIDENCE",
+              "WEAK",
+              "DEVELOPING",
+              "MASTERED"
+            ]
+          },
+          "lessonAcknowledged": {
+            "type": "boolean"
+          },
+          "quizSubmitted": {
+            "type": "boolean"
+          },
+          "codingAccepted": {
+            "type": "boolean"
+          },
+          "completed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "score",
+          "evidenceCount",
+          "familyCount",
+          "state",
+          "lessonAcknowledged",
+          "quizSubmitted",
+          "codingAccepted",
+          "completed"
+        ],
+        "additionalProperties": false
+      },
+      "Course": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "term": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"]
+          },
+          "publishedRevisionId": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "title",
+          "term",
+          "status",
+          "publishedRevisionId"
+        ],
+        "additionalProperties": true
+      },
+      "Topic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "enum": [
+              "linear-search",
+              "binary-search",
+              "bubble-sort",
+              "selection-sort",
+              "insertion-sort",
+              "merge-sort"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "unitLabel": {
+            "type": "string"
+          },
+          "lesson": {
+            "type": "string",
+            "minLength": 30,
+            "maxLength": 30000
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prerequisiteKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceSubjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceUnitId": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "sourcePages": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "position",
+          "unitLabel",
+          "lesson",
+          "objectives",
+          "prerequisiteKeys",
+          "sourceSubjectId",
+          "sourceUnitId",
+          "sourcePages"
+        ],
+        "additionalProperties": true
+      },
+      "Subject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "observedCode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startPage": {
+            "type": "integer"
+          },
+          "endPage": {
+            "type": "integer"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pathway": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "observedCode",
+          "title",
+          "startPage",
+          "endPage",
+          "issues",
+          "pathway"
+        ],
+        "additionalProperties": true
+      },
+      "Sample": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "input": {
+            "type": "string"
+          },
+          "expectedOutput": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "position", "input", "expectedOutput"],
+        "additionalProperties": false
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "courseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "starterCodes": {
+            "type": "object",
+            "properties": {
+              "c": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "cpp": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "java": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "python": {
+                "type": "string",
+                "maxLength": 65536
+              }
+            },
+            "required": ["c", "cpp", "java", "python"],
+            "additionalProperties": false
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sample"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "statement",
+          "topicId",
+          "courseId",
+          "revision",
+          "starterCodes",
+          "samples"
+        ],
+        "additionalProperties": false
+      },
+      "QuizItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "selectedOption": {
+            "type": ["integer", "null"]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "question": {
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["prompt", "options"],
+            "additionalProperties": false
+          },
+          "isCorrect": {
+            "type": "boolean"
+          },
+          "correctOption": {
+            "type": "integer"
+          },
+          "explanation": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "position", "selectedOption", "version", "question"],
+        "additionalProperties": false
+      },
+      "QuizAttempt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "topicId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["IN_PROGRESS", "COMPLETED"]
+          },
+          "score": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "submittedAt": {
+            "type": ["string", "null"]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuizItem"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "topicId",
+          "title",
+          "status",
+          "score",
+          "createdAt",
+          "submittedAt",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "HiddenCase": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "hidden": {
+            "const": true
+          },
+          "verdict": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["position", "hidden", "verdict"],
+        "additionalProperties": false
+      },
+      "PublicCase": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "hidden": {
+            "const": false
+          },
+          "verdict": {
+            "type": ["string", "null"]
+          },
+          "output": {
+            "type": ["string", "null"]
+          },
+          "diagnostics": {
+            "type": ["string", "null"]
+          },
+          "time": {
+            "type": ["string", "null"]
+          },
+          "memory": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": ["position", "hidden", "verdict"],
+        "additionalProperties": false
+      },
+      "Submission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "problemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "courseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "type": "string",
+            "enum": ["c", "cpp", "java", "python"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["CUSTOM", "SAMPLES", "SUBMIT"]
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["QUEUED", "RUNNING", "FINISHED", "EXECUTION_FAILED"]
+          },
+          "verdict": {
+            "type": ["string", "null"]
+          },
+          "passedCount": {
+            "type": "integer"
+          },
+          "totalCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": ["string", "null"]
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/HiddenCase"
+                },
+                {
+                  "$ref": "#/components/schemas/PublicCase"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "problemId",
+          "courseId",
+          "language",
+          "mode",
+          "source",
+          "status",
+          "verdict",
+          "passedCount",
+          "totalCount",
+          "createdAt",
+          "finishedAt",
+          "cases"
+        ],
+        "additionalProperties": false
+      },
+      "Login": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "TokenPassword": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256,
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        },
+        "required": ["token", "password"],
+        "additionalProperties": false
+      },
+      "Reset": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": ["email"],
+        "additionalProperties": false
+      },
+      "PasswordChange": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        },
+        "required": ["currentPassword", "password"],
+        "additionalProperties": false
+      },
+      "Invite": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "role": {
+            "type": "string",
+            "enum": ["STUDENT", "FACULTY", "ADMIN"]
+          }
+        },
+        "required": ["email", "name", "role"],
+        "additionalProperties": false
+      },
+      "AccountStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "DEACTIVATED"]
+          }
+        },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "CourseCreate": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "term": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "subjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 30
+          }
+        },
+        "required": ["code", "title", "term", "subjectIds"],
+        "additionalProperties": false
+      },
+      "CourseStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"]
+          }
+        },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "Membership": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberRole": {
+            "type": "string",
+            "enum": ["STUDENT", "FACULTY"]
+          }
+        },
+        "required": ["userId", "memberRole"],
+        "additionalProperties": false
+      },
+      "LessonDraft": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "linear-search",
+              "binary-search",
+              "bubble-sort",
+              "selection-sort",
+              "insertion-sort",
+              "merge-sort"
+            ]
+          },
+          "unitLabel": {
+            "type": "string"
+          },
+          "lesson": {
+            "type": "string",
+            "minLength": 30,
+            "maxLength": 30000
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prerequisiteKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceSubjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceUnitId": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "sourcePages": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "unitLabel",
+          "lesson",
+          "objectives",
+          "sourceSubjectId",
+          "sourcePages"
+        ],
+        "additionalProperties": false
+      },
+      "TopicOrder": {
+        "type": "object",
+        "properties": {
+          "topicIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 6
+          }
+        },
+        "required": ["topicIds"],
+        "additionalProperties": false
+      },
+      "QuestionDraft": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": ["EASY", "MEDIUM", "HARD"]
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 5000
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "minItems": 2,
+            "maxItems": 6
+          },
+          "correctOption": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 5000
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "objective",
+          "difficulty",
+          "prompt",
+          "options",
+          "correctOption",
+          "explanation"
+        ],
+        "additionalProperties": false
+      },
+      "ProblemDraft": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 30,
+            "maxLength": 20000
+          },
+          "starterCodes": {
+            "type": "object",
+            "properties": {
+              "c": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "cpp": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "java": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "python": {
+                "type": "string",
+                "maxLength": 65536
+              }
+            },
+            "required": ["c", "cpp", "java", "python"],
+            "additionalProperties": false
+          },
+          "reviewed": {
+            "type": "boolean"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                "expectedOutput": {
+                  "type": "string",
+                  "maxLength": 65536
+                },
+                "hidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["input", "expectedOutput", "hidden"],
+              "additionalProperties": false
+            },
+            "minItems": 8,
+            "maxItems": 8
+          }
+        },
+        "required": ["title", "statement", "starterCodes", "tests"],
+        "additionalProperties": false
+      },
+      "Answer": {
+        "type": "object",
+        "properties": {
+          "selectedOption": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["selectedOption", "version"],
+        "additionalProperties": false
+      },
+      "Draft": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Maximum 65536 UTF-8 bytes; character limit is an upper bound."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["source", "version"],
+        "additionalProperties": false
+      },
+      "ExecutionRequest": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": ["c", "cpp", "java", "python"]
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["CUSTOM", "SAMPLES", "SUBMIT"]
+          },
+          "stdin": {
+            "type": "string",
+            "maxLength": 16384
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["language", "source", "mode", "idempotencyKey"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
