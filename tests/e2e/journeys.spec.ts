@@ -22,6 +22,8 @@ test("student learning loop uses real curriculum, saves answers and drafts", asy
   await expect(
     page.getByText("2300118A · Computational Thinking and Problem Solving"),
   ).toBeVisible();
+  await expect(page.getByText("Find the first matching index")).toBeVisible();
+  await expect(page.getByText("Prerequisites: None")).toBeVisible();
   await page.getByRole("link", { name: "Explore topic", exact: false }).click();
   await page.getByRole("button", { name: "Acknowledge lesson" }).click();
   await expect(
@@ -34,6 +36,10 @@ test("student learning loop uses real curriculum, saves answers and drafts", asy
       .getByText("Compare index 0: 9 with target 7.", { exact: true })
       .first(),
   ).toBeVisible();
+  await page
+    .getByLabel("Array state and keyboard playback controls")
+    .press("ArrowRight");
+  await expect(page.getByText(/^Step 2 \/ /)).toBeVisible();
   await page.getByRole("tab", { name: "Quiz", exact: true }).click();
   await page.getByRole("button", { name: "Start or resume quiz" }).click();
   for (let i = 0; i < 10; i++) {
@@ -49,6 +55,9 @@ test("student learning loop uses real curriculum, saves answers and drafts", asy
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Submit quiz" }).click();
   await expect(page.getByText("100%", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Mastery evidence" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Review topic and next steps" }).click();
   await page.getByRole("tab", { name: "Code", exact: true }).click();
   await page
@@ -84,6 +93,16 @@ test("student learning loop uses real curriculum, saves answers and drafts", asy
   expect(saved.status()).toBe(200);
   await page.reload();
   await expect(page.locator(".monaco-editor").first()).toBeVisible();
+  await page.getByRole("link", { name: "Progress", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "See how you’re learning" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await page.getByLabel("Motion preference").selectOption("reduce");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Motion preference saved" }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
 });
 test("faculty can inspect actual students and create immutable-content revision drafts", async ({
   page,
@@ -103,6 +122,10 @@ test("faculty can inspect actual students and create immutable-content revision 
   await expect(
     page.getByText("Browser Student", { exact: true }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "View student detail" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Browser Student" }),
+  ).toBeVisible();
 });
 test("admin sees real source totals and audited enrollment features", async ({
   page,
@@ -114,6 +137,10 @@ test("admin sees real source totals and audited enrollment features", async ({
   await expect(
     page.getByText("89 subject references", { exact: false }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Read reference" }).first().click();
+  await expect(
+    page.getByRole("heading", { name: "Source-page text" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Users", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "User accounts" }),
@@ -122,6 +149,11 @@ test("admin sees real source totals and audited enrollment features", async ({
   await expect(
     page.getByRole("heading", { name: "Audit history" }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Service health", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Service health" }),
+  ).toBeVisible();
+  await expect(page.getByText("Secure executor")).toBeVisible();
 });
 test("mobile dashboard and curriculum reflow without page overflow", async ({
   page,

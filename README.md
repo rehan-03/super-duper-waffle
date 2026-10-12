@@ -45,6 +45,7 @@ npm.cmd run setup:local
 npm.cmd run db:generate
 npm.cmd run db:migrate
 npm.cmd run db:seed
+npm.cmd run db:seed:courses
 npm.cmd run bootstrap:admin
 npm.cmd run dev
 ```
@@ -53,15 +54,19 @@ Open **http://localhost:5173**. API: loopback port 4000. Run `npm.cmd run worker
 
 Local setup initializes only `.local/postgres` on `127.0.0.1:55432`, generates random credentials in ignored `.env`, and creates `algolearn` and `algolearn_test`. It does not change or stop the existing Windows PostgreSQL service. Repeat to restart this cluster; `npm.cmd run db:stop` stops only this cluster. `.env`, `.local`, tokens, code and database dumps must never be committed.
 
+`npm.cmd run db:seed:courses` is an optional development-only provisioner. It creates one deterministic course shell for each of the eight official semesters, links the imported subjects, and enrolls active students or assigns active faculty. It is idempotent, refuses to run in production, and never creates lessons, questions, problems, scores or progress. Use the admin workflow for real institutional course offerings.
+
 Manual setup: copy `.env.example`, supply database URLs, then generate/migrate/seed. Docker alternative: privately configure `POSTGRES_PASSWORD`, run `docker compose up -d`, and create the isolated test database separately. Stop the dedicated native cluster first if Docker uses the same port.
 
 ## First administrator and real content
 
 Students can open **http://localhost:5173/signup** (also linked from Log in), enter their full name and email, then open the activation link and choose a password of at least 12 characters. Registration creates only a pending student account, with no password, enrollment, quizzes or progress. Repeat sign-up with the same email to request a fresh link; existing active accounts must log in or reset their password. Public sign-up never grants staff roles or changes an existing account's details.
 
-In local development, activation messages go to private `.local/outbox` JSON files **instead of an email inbox**. Open the `url` in the message addressed to your own email; do not share or commit these files. Production requires configured SMTP. Links expire after 24 hours and are single-use. Once activated, a new student sees an empty dashboard until an administrator enrolls them.
+In local development, activation and reset messages appear at **http://localhost:5173/dev/mail-preview** instead of an external inbox. The preview is available only when both the API and application origin are loopback-only, never exposes a filesystem path, and is disabled in production. Filter by your recipient address and open the action link. Links use URL fragments, expire after 24 hours for activation (30 minutes for reset), and are single-use. Once activated, a new student sees an empty dashboard until an administrator enrolls them.
 
-Bootstrap creates a pending administrator at `BOOTSTRAP_ADMIN_EMAIL` (default `admin@algolearn.local`) with no default password. Development mail is delivered as private JSON files in ignored `.local/outbox`. Open the `url` in the message addressed to your administrator, set your own password and sign in. Tokens use URL fragments and are not printed in server logs. Activation links expire after 24 hours; repeat bootstrap to resend a pending administrator's invitation.
+Bootstrap creates a pending administrator at `BOOTSTRAP_ADMIN_EMAIL` (default `admin@algolearn.local`) with no default password. In development, open the local email preview, filter for the administrator address, set your own password and sign in. Tokens use URL fragments and are not printed in server logs. Activation links expire after 24 hours; repeat bootstrap to resend a pending administrator's invitation.
+
+Production email requires `MAIL_MODE=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and a provider-verified `MAIL_FROM`. Use port 587 with STARTTLS (`SMTP_SECURE=false`) or port 465 with implicit TLS (`SMTP_SECURE=true`) according to the provider. The API validates the SMTP connection before it starts listening, so invalid credentials or an unreachable provider fail startup rather than silently accepting unsendable registrations. Keep credentials in deployment secret management, not `.env` in source control.
 
 Admin invites actual users, creates a course linked to official subjects, assigns faculty and enrolls students. Assigned faculty creates a draft, maps lessons to supplied subject/unit/PDF pages, authors and reviews content, sets order/prerequisites and publishes. Each topic needs 6 easy/7 medium/7 hard reviewed questions and two reviewed problems with three samples/five hidden tests. Edits create immutable revisions; historical activity retains its original content.
 
@@ -79,6 +84,7 @@ Limits: source/output 64 KiB, input 16 KiB, CPU 2 seconds, wall 10 seconds, memo
 
 ```powershell
 npm.cmd run typecheck
+npm.cmd run lint
 npm.cmd test
 npx.cmd playwright install chromium
 npm.cmd run test:e2e
@@ -101,7 +107,7 @@ node scripts/restore-drill.mjs
 
 Local backups go into ignored `.local/backups`. The drill restores into a newly created temporary database, verifies source counts, and removes only that temporary database. It does not modify development or the existing service. Local snapshots do not certify production encryption or point-in-time recovery.
 
-Dockerfiles, restrictive Nginx configuration and CI are prepared; container builds/remote CI have not run here. `docs/deployment.md` covers HTTPS, SMTP, secrets, private networks, migration rollout, monitoring and operational gates.
+Production application builds and compiled local browser workflows have been verified. Dockerfiles, restrictive Nginx configuration and CI are prepared; container builds/remote CI have not run here because the local Docker daemon is unavailable. `docs/deployment.md` covers HTTPS, SMTP, secrets, private networks, migration rollout, monitoring and operational gates.
 
 ## Remaining release requirements
 

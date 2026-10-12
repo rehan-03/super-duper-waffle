@@ -1,15 +1,14 @@
-import { readFile } from "node:fs/promises";
+import { configureTestEnvironment } from "./test-environment.mjs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
-const text = await readFile(path.join(root, ".env"), "utf8");
-const database = text.match(/^TEST_DATABASE_URL=(.+)$/m)?.[1]?.trim();
-if (!database || new URL(database).pathname !== "/algolearn_test")
-  throw new Error("Dedicated test database required.");
+const database = configureTestEnvironment();
 const child = spawn(
   process.execPath,
-  [path.join(root, "node_modules/tsx/dist/cli.mjs"), "src/server.ts"],
+  process.env.E2E_PRODUCTION === "true"
+    ? ["dist/server.js"]
+    : [path.join(root, "node_modules/tsx/dist/cli.mjs"), "src/server.ts"],
   {
     cwd: path.join(root, "apps/api"),
     env: {
@@ -18,6 +17,7 @@ const child = spawn(
       NODE_ENV: "test",
       APP_ORIGIN: "http://localhost:5174",
       PORT: "4001",
+      HOST: "127.0.0.1",
     },
     stdio: "inherit",
     windowsHide: true,

@@ -3,17 +3,21 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import dotenv from "dotenv";
-dotenv.config({ path: "../../.env", quiet: true });
-const testUrl = process.env.TEST_DATABASE_URL;
-if (!testUrl || !new URL(testUrl).pathname.endsWith("/algolearn_test"))
-  throw new Error("Tests require a dedicated algolearn_test database.");
-process.env.DATABASE_URL = testUrl;
-process.env.NODE_ENV = "test";
+import { configureTestEnvironment } from "../../../scripts/test-environment.mjs";
+const testUrl = configureTestEnvironment();
 const { db } = await import("../src/db.js");
 function seed() {
   const cli = path.resolve("../../node_modules/tsx/dist/cli.mjs");
   const result = spawnSync(process.execPath, [cli, "src/seed.ts"], {
+    env: { ...process.env, DATABASE_URL: testUrl },
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.equal(result.status, 0, result.stderr);
+}
+function seedCourses() {
+  const cli = path.resolve("../../node_modules/tsx/dist/cli.mjs");
+  const result = spawnSync(process.execPath, [cli, "src/seed-courses.ts"], {
     env: { ...process.env, DATABASE_URL: testUrl },
     encoding: "utf8",
     windowsHide: true,
@@ -170,6 +174,79 @@ test("database rejects duplicate curriculum keys and broken foreign references",
       },
     }),
   );
+});
+test("development provisioning creates repeatable official semester course shells", async () => {
+  const fixture = crypto.randomUUID();
+  await db.user.createMany({
+    data: [
+      {
+        email: `student-${fixture}@fixture.example`,
+        name: "Course seed student",
+        role: "STUDENT",
+        status: "ACTIVE",
+      },
+      {
+        email: `faculty-${fixture}@fixture.example`,
+        name: "Course seed faculty",
+        role: "FACULTY",
+        status: "ACTIVE",
+      },
+      {
+        email: `pending-${fixture}@fixture.example`,
+        name: "Pending course seed student",
+        role: "STUDENT",
+        status: "PENDING",
+      },
+    ],
+  });
+  const eligible = await db.user.count({
+    where: {
+      status: "ACTIVE",
+      role: { in: ["STUDENT", "FACULTY"] },
+    },
+  });
+  const subjectCount = await db.subject.count({
+    where: { semesterId: { not: null } },
+  });
+
+  seedCourses();
+  const provisioned = await db.course.findMany({
+    where: { code: { startsWith: "DEV-" } },
+    include: { subjects: true, memberships: true },
+  });
+  assert.equal(provisioned.length, 8);
+  assert.equal(
+    provisioned.reduce((sum, course) => sum + course.subjects.length, 0),
+    subjectCount,
+  );
+  assert.equal(
+    provisioned.reduce((sum, course) => sum + course.memberships.length, 0),
+    provisioned.length * eligible,
+  );
+  assert.ok(provisioned.every((course) => course.publishedRevisionId === null));
+
+  seedCourses();
+  assert.equal(
+    await db.course.count({ where: { code: { startsWith: "DEV-" } } }),
+    8,
+  );
+  assert.equal(
+    await db.courseMembership.count({
+      where: { course: { code: { startsWith: "DEV-" } } },
+    }),
+    provisioned.length * eligible,
+  );
+
+  await db.courseMembership.deleteMany({
+    where: { course: { code: { startsWith: "DEV-" } } },
+  });
+  await db.courseSubject.deleteMany({
+    where: { course: { code: { startsWith: "DEV-" } } },
+  });
+  await db.course.deleteMany({ where: { code: { startsWith: "DEV-" } } });
+  await db.user.deleteMany({
+    where: { email: { endsWith: "@fixture.example" } },
+  });
 });
 test.after(async () => {
   await db.$disconnect();

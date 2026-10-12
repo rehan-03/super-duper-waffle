@@ -2,10 +2,11 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import dotenv from "dotenv";
 const root = fileURLToPath(new URL("../", import.meta.url)),
   folder = path.resolve(root, ".local/backups");
-const text = await readFile(path.join(root, ".env"), "utf8"),
-  url = new URL(text.match(/^DATABASE_URL=(.+)$/m)?.[1]?.trim() ?? "");
+dotenv.config({ path: path.join(root, ".env"), quiet: true });
+const url = new URL(process.env.DATABASE_URL ?? "");
 if (
   url.hostname !== "127.0.0.1" ||
   url.port !== "55432" ||
@@ -45,11 +46,14 @@ const run = (tool, args) => {
     },
   );
   if (result.status !== 0)
-    throw new Error(`${tool} failed during the isolated restore drill.`);
+    throw new Error(
+      `${tool} failed during the isolated restore drill (${result.error?.code ?? result.status}): ${result.stderr?.replaceAll(decodeURIComponent(url.password), "[redacted]") ?? "No diagnostic output."}`,
+    );
   return result.stdout;
 };
 const started = performance.now();
 let created = false;
+let restoredCounts;
 try {
   run("createdb", [database]);
   created = true;
@@ -75,13 +79,22 @@ try {
     throw new Error(
       "Restored curriculum did not match its expected verified inventory.",
     );
-  console.log(
-    JSON.stringify({
-      restoreDrill: "passed",
-      ...counts,
-      elapsedSeconds: Math.round((performance.now() - started) / 1000),
-    }),
-  );
+  restoredCounts = counts;
 } finally {
-  if (created) run("dropdb", [database]);
+  if (created)
+    run("psql", [
+      "--dbname",
+      "postgres",
+      "--set",
+      "ON_ERROR_STOP=1",
+      "--command",
+      `DROP DATABASE "${database}"`,
+    ]);
 }
+console.log(
+  JSON.stringify({
+    restoreDrill: "passed",
+    ...restoredCounts,
+    elapsedSeconds: Math.round((performance.now() - started) / 1000),
+  }),
+);

@@ -5,13 +5,9 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import path from "node:path";
 import request from "supertest";
-import dotenv from "dotenv";
-dotenv.config({ path: "../../.env", quiet: true });
-const url = process.env.TEST_DATABASE_URL;
-if (!url || new URL(url).pathname !== "/algolearn_test")
-  throw new Error("Worker contracts require the isolated test database.");
-process.env.DATABASE_URL = url;
-process.env.NODE_ENV = "test";
+import { configureTestEnvironment } from "../../../scripts/test-environment.mjs";
+configureTestEnvironment();
+process.env.APP_ORIGIN = "http://localhost:5173";
 const { db } = await import("../src/db.js");
 const { hashPassword, newToken } = await import("../src/security.js");
 const inventory = [
@@ -202,6 +198,7 @@ test.before(async () => {
       title: "Contract fixture",
       statement: "Automated test fixture only.",
       starterCodes: {},
+      reviewed: true,
       tests: {
         create: Array.from({ length: 8 }, (_, i) => ({
           position: i + 1,

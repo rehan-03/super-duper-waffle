@@ -34,6 +34,8 @@ export default function CodingPage() {
     [version, setVersion] = useState(0),
     [dirty, setDirty] = useState(false),
     [saving, setSaving] = useState(false),
+    [draftReady, setDraftReady] = useState(false),
+    [draftRetry, setDraftRetry] = useState(0),
     [saveStatus, setSaveStatus] = useState("Loading draft…"),
     [error, setError] = useState(""),
     [conflict, setConflict] = useState<{
@@ -62,6 +64,7 @@ export default function CodingPage() {
   useEffect(() => {
     let live = true;
     generation.current++;
+    setDraftReady(false);
     setSaveStatus("Loading draft…");
     setConflict(null);
     setError("");
@@ -72,6 +75,7 @@ export default function CodingPage() {
         setSource(value);
         sourceRef.current = value;
         setSaveStatus("Faculty starter-code preview");
+        setDraftReady(true);
       }
       return;
     }
@@ -84,6 +88,7 @@ export default function CodingPage() {
           sourceRef.current = d.source;
           setVersion(d.version);
           setSaveStatus("Saved");
+          setDraftReady(true);
         }
       })
       .catch((e) => {
@@ -95,10 +100,10 @@ export default function CodingPage() {
     return () => {
       live = false;
     };
-  }, [language, problemId, student, p.data]);
+  }, [language, problemId, student, p.data, draftRetry]);
   const save = useCallback(
     async (overrideVersion?: number) => {
-      if (!student || savingRef.current) return false;
+      if (!student || !draftReady || savingRef.current) return false;
       const snapshot = sourceRef.current,
         expected = overrideVersion ?? version,
         currentGeneration = generation.current;
@@ -120,7 +125,10 @@ export default function CodingPage() {
           setConflict(null);
           setError("");
         }
-        return true;
+        return (
+          generation.current === currentGeneration &&
+          sourceRef.current === snapshot
+        );
       } catch (e) {
         setSaveStatus("Not saved");
         setError((e as Error).message);
@@ -135,7 +143,7 @@ export default function CodingPage() {
         setSaving(false);
       }
     },
-    [version, student, problemId, language],
+    [version, student, problemId, language, draftReady],
   );
   useEffect(() => {
     if (!dirty || conflict || saving) return;
@@ -186,7 +194,9 @@ export default function CodingPage() {
     };
   }, [submissionId, history.refresh, pollVersion]);
   async function changeLanguage(value: string) {
+    if (value === language) return;
     if (dirty && !(await save())) return;
+    setDraftReady(false);
     setLanguage(value);
   }
   async function execute(runMode: string) {
@@ -240,6 +250,14 @@ export default function CodingPage() {
       {error && (
         <Alert>
           {error}
+          {saveStatus === "Draft could not load" && (
+            <Button
+              kind="secondary"
+              onClick={() => setDraftRetry((value) => value + 1)}
+            >
+              Retry loading draft
+            </Button>
+          )}
           {saveStatus === "Not saved" && !conflict && (
             <Button
               kind="secondary"
@@ -351,7 +369,7 @@ export default function CodingPage() {
                 <Button
                   kind="secondary"
                   onClick={() => void save()}
-                  disabled={saving || !dirty || !!conflict}
+                  disabled={!draftReady || saving || !dirty || !!conflict}
                 >
                   Save draft
                 </Button>
@@ -364,6 +382,7 @@ export default function CodingPage() {
             </p>
             <Suspense fallback={<Loading />}>
               <CodeEditor
+                readOnly={!draftReady}
                 source={source}
                 language={language}
                 onChange={(value) => {
@@ -385,6 +404,7 @@ export default function CodingPage() {
                 kind="secondary"
                 disabled={
                   !student ||
+                  !draftReady ||
                   !availability.data?.available ||
                   running ||
                   !!conflict
@@ -396,6 +416,7 @@ export default function CodingPage() {
               <Button
                 disabled={
                   !student ||
+                  !draftReady ||
                   !availability.data?.available ||
                   running ||
                   !!conflict

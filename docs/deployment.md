@@ -17,13 +17,21 @@ flowchart LR
 
 ## Rollout
 
-Build API/worker from the root Dockerfile and frontend with `docker build -f apps/web/Dockerfile .`. The root `migrations` target retains the migration tool; runtime runs as the Node user. Worker command: `node apps/api/dist/worker.js`. Builds remain unverified here.
+Build API/worker from the root Dockerfile and frontend with `docker build -f apps/web/Dockerfile .`. The root `migrations` target retains the migration tool; runtime runs as the Node user. Worker command: `node apps/api/dist/worker.js`. Local production application builds and compiled browser workflows are verified; container builds remain unverified because the local Docker daemon is unavailable.
 
 Provide private PostgreSQL/SMTP settings, `NODE_ENV=production`, HTTPS `APP_ORIGIN`, `COOKIE_SECURE=true`, `MAIL_MODE=smtp`. Bind API to `0.0.0.0` only inside a restricted container network. Nginx expects the service `api:4000`; terminate TLS at the edge. Set only the actual trusted proxy-hop count; default is zero. Nginx replaces forwarded IP headers. Verify client-IP handling with the chosen edge.
 
+## Email delivery
+
+Provision an authenticated SMTP account with the institution or a transactional provider. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and a provider-verified `MAIL_FROM`. Use `SMTP_SECURE=false` for provider-documented STARTTLS (normally port 587), or `SMTP_SECURE=true` for implicit TLS (normally port 465). Store the username/password in the platform secret manager and rotate them according to institutional policy; never bake them into images or commit them.
+
+Production configuration rejects filesystem delivery, insecure cookies, non-HTTPS origins, missing SMTP credentials, and the development `.local` sender. API startup verifies the SMTP connection before opening its HTTP listener. Treat a failed verification as a deployment failure and inspect provider/network logs without printing credentials. After deployment, send activation and reset messages to controlled real inboxes, verify spam/domain authentication behavior (SPF, DKIM and DMARC), expiry and single use, then remove the test accounts.
+
+Development/test uses a loopback-only preview at `/dev/mail-preview`; it sends no external mail. The API rejects that mode when `HOST` or `APP_ORIGIN` is non-loopback, and the preview endpoint also checks the requesting socket is loopback. Never expose a development process through a tunnel or reverse proxy.
+
 Run reviewed migrations before rollout. Import verified PDFs/catalog in a separate trusted seed/bootstrap job for a fresh institutional database. Runtime startup does not create accounts/content. Retain the previous application image, use additive/backward-compatible migrations and preserve published snapshots during rollback.
 
-CI uses lockfile installs, build/typechecks, database/browser tests and dependency auditing with read-only repository permissions. Pin reviewed action/image digests before institutional rollout. Remote CI and container execution are pending. Official guidance: [checkout](https://github.com/actions/checkout), [Node setup](https://github.com/actions/setup-node).
+CI uses lockfile installs, linting, builds, type checks, database/browser tests and dependency auditing with read-only repository permissions. Pin reviewed action/image digests before institutional rollout. Remote CI and container execution are pending. Official guidance: [checkout](https://github.com/actions/checkout), [Node setup](https://github.com/actions/setup-node).
 
 ## Monitoring
 

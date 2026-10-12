@@ -1,6 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Link, useParams } from "react-router-dom";
+import {
+  algorithms,
+  algorithmKeys,
+  type AlgorithmKey,
+} from "@algolearn/shared";
 
 import { api, useData } from "./api";
 
@@ -213,6 +218,7 @@ export function CoursesPage() {
 
 export function CoursePage() {
   const { courseId } = useParams();
+  const { user } = useAuth();
   const q = useData<{ course: Course; subjects: Subject[] }>(
       `/courses/${courseId}/curriculum`,
     ),
@@ -243,9 +249,43 @@ export function CoursePage() {
         <div className="course-grid">
           {t.data!.topics.map((topic) => (
             <Card key={topic.id}>
-              <Badge>{topic.unitLabel}</Badge>
+              <div className="row spread">
+                <Badge>{topic.unitLabel}</Badge>
+                {topic.progress && (
+                  <Badge>{readable(topic.progress.state)}</Badge>
+                )}
+              </div>
               <h3>{topic.title}</h3>
-              <p>Learn · Visualize · Quiz · Code</p>
+              {topic.objectives.length > 0 && (
+                <ul>
+                  {topic.objectives.map((objective) => (
+                    <li key={objective}>{objective}</li>
+                  ))}
+                </ul>
+              )}
+              <p>
+                Prerequisites:{" "}
+                {topic.prerequisiteKeys.length
+                  ? topic.prerequisiteKeys
+                      .map(
+                        (key) =>
+                          algorithms[key as AlgorithmKey]?.title ??
+                          readable(key),
+                      )
+                      .join(", ")
+                  : "None"}
+              </p>
+              {user!.role === "STUDENT" && topic.progress && (
+                <p className="muted">
+                  {topic.progress.completed
+                    ? "Learning checklist complete"
+                    : "Learning checklist in progress"}
+                  {" · "}
+                  {topic.progress.score === null
+                    ? "Mastery not yet assessed"
+                    : `Estimated mastery ${topic.progress.score}%`}
+                </p>
+              )}
               <Link className="text-action" to={`/topics/${topic.id}`}>
                 Explore topic →
               </Link>
@@ -282,6 +322,9 @@ export function SubjectPanel({
   subject: Subject;
   sourceLink?: string;
 }) {
+  const visualizers = algorithmKeys.filter(
+    (key) => algorithms[key].syllabus.subjectCode === s.code,
+  );
   return (
     <Card className="subject-panel">
       <div className="row spread">
@@ -329,6 +372,18 @@ export function SubjectPanel({
           No numbered topic units were supplied. Laboratory/activity
           descriptions, where present, remain in the source details.
         </p>
+      )}
+      {visualizers.length > 0 && (
+        <div className="syllabus-visualizers">
+          <h4>Interactive syllabus simulations</h4>
+          <div className="row">
+            {visualizers.map((key) => (
+              <Link key={key} to={`/visualizers/${key}`} className="topic-chip">
+                {algorithms[key].title}
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
       {sourceLink && (
         <Link to={sourceLink} className="text-action">
@@ -598,6 +653,7 @@ function FacultyOverview() {
                     View student progress →
                   </Link>
                 </div>
+                <FacultySummary courseId={c.id} />
               </Card>
             ))}
           </div>
@@ -839,6 +895,11 @@ export function UsersPage() {
                     </td>
                   </tr>
                 ))}
+                {!q.data!.users.length && (
+                  <tr>
+                    <td colSpan={5}>No accounts match this page.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -975,6 +1036,7 @@ export function AdminCoursesPage() {
               ))}
             </select>
           </Field>
+          {subjects.loading && <Loading />}
           {subjects.error && (
             <ErrorState error={subjects.error} retry={subjects.refresh} />
           )}
@@ -1024,6 +1086,7 @@ export function AdminCoursesPage() {
         {users.error && (
           <ErrorState error={users.error} retry={users.refresh} />
         )}
+        {users.loading && <Loading />}
         <p className="muted">
           Search accounts to find people beyond the first 100 matches.
         </p>
@@ -1034,7 +1097,7 @@ export function AdminCoursesPage() {
               <Loading />
             ) : members.error ? (
               <ErrorState error={members.error} retry={members.refresh} />
-            ) : (
+            ) : members.data!.memberships.length ? (
               members.data!.memberships.map((m) => (
                 <div className="row spread" key={m.id}>
                   <p>
@@ -1066,6 +1129,8 @@ export function AdminCoursesPage() {
                   </Button>
                 </div>
               ))
+            ) : (
+              <p className="muted">No one is assigned to this course yet.</p>
             )}
           </>
         )}
@@ -1075,23 +1140,30 @@ export function AdminCoursesPage() {
       ) : q.error ? (
         <ErrorState error={q.error} retry={q.refresh} />
       ) : (
-        <div className="course-grid">
-          {q.data!.courses.map((c) => (
-            <Card key={c.id}>
-              <h3>{c.title}</h3>
-              <p>
-                {c.code} · {c.term}
-              </p>
-              <Badge>{readable(c.status)}</Badge>
-              <div className="row">
-                <Link to={`/courses/${c.id}`}>View curriculum</Link>
-                <Button kind="secondary" onClick={() => archive(c)}>
-                  {c.status === "ACTIVE" ? "Archive" : "Reactivate"}
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <>
+          <div className="course-grid">
+            {q.data!.courses.map((c) => (
+              <Card key={c.id}>
+                <h3>{c.title}</h3>
+                <p>
+                  {c.code} · {c.term}
+                </p>
+                <Badge>{readable(c.status)}</Badge>
+                <div className="row">
+                  <Link to={`/courses/${c.id}`}>View curriculum</Link>
+                  <Button kind="secondary" onClick={() => archive(c)}>
+                    {c.status === "ACTIVE" ? "Archive" : "Reactivate"}
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+          {!q.data!.courses.length && (
+            <Empty title="No courses created">
+              <p>Create a course and connect it to official subjects above.</p>
+            </Empty>
+          )}
+        </>
       )}
     </>
   );
@@ -1118,17 +1190,26 @@ export function AuditPage() {
       ) : q.error ? (
         <ErrorState error={q.error} retry={q.refresh} />
       ) : (
-        q.data!.events.map((e) => (
-          <Card key={e.id}>
-            <div className="row spread">
-              <strong>{readable(e.action)}</strong>
-              <time>{new Date(e.createdAt).toLocaleString()}</time>
-            </div>
-            <p>
-              {e.actor?.name ?? "System"} · {e.entityType}
-            </p>
-          </Card>
-        ))
+        <>
+          {q.data!.events.map((e) => (
+            <Card key={e.id}>
+              <div className="row spread">
+                <strong>{readable(e.action)}</strong>
+                <time>{new Date(e.createdAt).toLocaleString()}</time>
+              </div>
+              <p>
+                {e.actor?.name ?? "System"} · {e.entityType}
+              </p>
+            </Card>
+          ))}
+          {!q.data!.events.length && (
+            <Empty title="No audit events yet">
+              <p>
+                Account, course, enrollment and publication changes appear here.
+              </p>
+            </Empty>
+          )}
+        </>
       )}
     </>
   );
@@ -1207,11 +1288,20 @@ export function HealthPage() {
 export function AccountPage() {
   const { user, logout } = useAuth(),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [message, setMessage] = useState(""),
+    [busy, setBusy] = useState(false),
+    [motionPreference, setMotionPreference] = useState(
+      () => localStorage.getItem("algolearn-motion") ?? "system",
+    );
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    if (f.get("password") !== f.get("confirmation")) {
+      setError("New passwords do not match.");
+      return;
+    }
     setBusy(true);
+    setError("");
     try {
       await api(
         "/me/password",
@@ -1264,15 +1354,45 @@ export function AccountPage() {
               required
             />
           </Field>
+          <Field label="Confirm new password">
+            <input
+              name="confirmation"
+              type="password"
+              minLength={12}
+              maxLength={128}
+              autoComplete="new-password"
+              required
+            />
+          </Field>
           <Button disabled={busy}>Update password</Button>
         </form>
       </Card>
       <Card>
         <h2>Accessibility</h2>
         <p>
-          Animations follow your device’s reduced-motion setting. All learning
-          controls also work without playback.
+          Choose whether animations follow your device setting or are always
+          reduced on this browser. Learning controls work without playback.
         </p>
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
+        )}
+        <Field label="Motion preference">
+          <select
+            value={motionPreference}
+            onChange={(event) => {
+              const value = event.target.value;
+              localStorage.setItem("algolearn-motion", value);
+              setMotionPreference(value);
+              window.dispatchEvent(new Event("motion-preference-changed"));
+              setMessage("Motion preference saved on this browser.");
+            }}
+          >
+            <option value="system">Follow device setting</option>
+            <option value="reduce">Always reduce motion</option>
+          </select>
+        </Field>
         <Button kind="secondary" onClick={() => void logout()}>
           Sign out
         </Button>

@@ -18,7 +18,10 @@ export default defineConfig({
       timeout: 30000,
     },
     {
-      command: "npm run dev -w @algolearn/web -- --port 5174",
+      command:
+        process.env.E2E_PRODUCTION === "true"
+          ? "npm run preview -w @algolearn/web -- --port 5174 --strictPort"
+          : "npm run dev -w @algolearn/web -- --port 5174",
       env: { API_TARGET: "http://127.0.0.1:4001" },
       url: "http://localhost:5174",
       reuseExistingServer: false,

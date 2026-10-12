@@ -6,8 +6,10 @@ export const passwordSchema = z
   .min(12, "Use at least 12 characters.")
   .max(128);
 export const emailSchema = z
-  .email()
+  .string()
+  .trim()
   .max(254)
+  .pipe(z.email())
   .transform((v) => v.toLowerCase().trim());
 export const newToken = () => randomBytes(32).toString("base64url");
 export const hashToken = (token: string) =>

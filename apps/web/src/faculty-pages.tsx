@@ -121,15 +121,20 @@ export function ContentPage() {
           {message}
         </p>
       )}
-      {q.loading ? (
+      {q.loading || curriculum.loading ? (
         <Loading />
       ) : q.error ? (
         <ErrorState error={q.error} retry={q.refresh} />
+      ) : curriculum.error ? (
+        <ErrorState error={curriculum.error} retry={curriculum.refresh} />
       ) : draft ? (
         <>
           <div className="row">
             <Badge>Draft revision {draft.number}</Badge>
-            <p>{draft.topics.length} of six supported algorithm topics</p>
+            <p>
+              {draft.topics.length} of {algorithmKeys.length} supported
+              visualizer topics
+            </p>
           </div>
           <div className="author-grid">
             <Card>

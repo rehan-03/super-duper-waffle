@@ -55,6 +55,8 @@ async function problemAccess(
     },
   });
   if (!p) throw new ApiError(404, "NOT_FOUND", "Problem not found.");
+  if (req.auth!.user.role === "STUDENT" && !p.reviewed)
+    throw new ApiError(404, "NOT_FOUND", "Problem not found.");
   await topicAccess(req, p.topicId, write);
   return p;
 }

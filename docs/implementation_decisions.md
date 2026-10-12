@@ -10,7 +10,7 @@ The PRD is authoritative. The following clarify its missing decisions and are ex
 - Prisma 6.19.3 is selected as the patched stable compatibility target after dependency auditing. The React/Express/PostgreSQL/Prisma architecture is unchanged; registry release candidates are not used. Node 24 and the actual migrated schema/client are tested together.
 - Source glyph limitations and contradictory course codes require human review against original PDFs. No missing source material, scores, learners or assessed question banks are invented by curriculum seeding.
 - The secure worker requires configured deployed toolchain IDs, confirmed isolated-host/network restrictions and a current healthy heartbeat. Without those, execution returns an explicit unavailable response; no local process fallback runs user code.
-- Local filesystem invitation/reset delivery is an explicitly development-only outbox. Production validates SMTP/HTTPS/Secure-cookie configuration at startup. Institutional content review, live sandbox abuse tests and operational release gates remain mandatory.
+- Local invitation/reset delivery uses an explicitly development-only, loopback-only browser preview without exposing storage paths. Production validates HTTPS, secure-cookie, authenticated SMTP and verified-sender configuration, then verifies the SMTP connection before listening. Institutional content review, live sandbox abuse tests and operational release gates remain mandatory.
 
 ## User-requested authentication amendment
 

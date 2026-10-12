@@ -4,6 +4,10 @@ import path from "node:path";
 test("development server refuses private application and outbox files", async ({
   request,
 }) => {
+  test.skip(
+    process.env.E2E_PRODUCTION === "true",
+    "The Vite source-file endpoint exists only in development.",
+  );
   const root = process.cwd(),
     canary = path.join(root, ".local", "private-file-canary.txt");
   const marker = "Private development file must not be served.";

@@ -86,6 +86,13 @@ export type Quiz = {
   score: number | null;
   createdAt: string;
   submittedAt: string | null;
+  progress?: Progress;
+  recommendations?: {
+    topicId: string;
+    title: string;
+    reason: string;
+    action: string;
+  }[];
   items: {
     id: string;
     position: number;

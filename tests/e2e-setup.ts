@@ -1,11 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { configureTestEnvironment } from "../scripts/test-environment.mjs";
 export default async function () {
-  const text = await readFile(".env", "utf8"),
-    url = text.match(/^TEST_DATABASE_URL=(.+)$/m)?.[1]?.trim();
-  if (!url || new URL(url).pathname !== "/algolearn_test")
-    throw new Error("Browser tests require the isolated test database.");
-  process.env.DATABASE_URL = url;
-  process.env.NODE_ENV = "test";
+  configureTestEnvironment();
   const { db } = await import("../apps/api/src/db.js"),
     { hashPassword } = await import("../apps/api/src/security.js");
   await db.$executeRawUnsafe('TRUNCATE TABLE "User", "Course" CASCADE');

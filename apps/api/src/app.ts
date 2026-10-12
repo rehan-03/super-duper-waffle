@@ -29,6 +29,7 @@ import {
 import { learningRouter } from "./learning.js";
 import { executionRouter } from "./execution.js";
 import { recordRequest } from "./metrics.js";
+import { listLocalMailPreviews, localMailPreviewEnabled } from "./mail.js";
 export const app = express();
 app.disable("x-powered-by");
 if (config.TRUST_PROXY_HOPS) app.set("trust proxy", config.TRUST_PROXY_HOPS);
@@ -67,6 +68,15 @@ app.get("/api/v1/health", async (_req, res) => {
 });
 app.use("/api/v1", checkOrigin, authenticate);
 app.use("/api/v1/auth", authRouter);
+app.get("/api/v1/dev/mail-preview", async (req, res) => {
+  const address = req.socket.remoteAddress;
+  const loopback = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
+    address ?? "",
+  );
+  if (!localMailPreviewEnabled || !loopback)
+    throw new ApiError(404, "NOT_FOUND", "Local email preview is unavailable.");
+  res.json({ messages: await listLocalMailPreviews() });
+});
 app.use(
   "/api/v1",
   requireAuth,
@@ -110,6 +120,15 @@ app.patch("/api/v1/me/password", async (req: AuthRequest, res) => {
     );
   const passwordHash = await hashPassword(b.password);
   await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id=${req.auth!.user.id}::uuid FOR UPDATE`;
+    const current = await tx.user.findUniqueOrThrow({
+      where: { id: req.auth!.user.id },
+    });
+    if (
+      current.status !== "ACTIVE" ||
+      current.passwordHash !== req.auth!.user.passwordHash
+    )
+      throw new ApiError(401, "UNAUTHENTICATED", "Please sign in again.");
     await tx.user.update({
       where: { id: req.auth!.user.id },
       data: { passwordHash },
@@ -316,15 +335,12 @@ app.post(
       return u;
     });
     await invite(user.id);
-    res
-      .status(201)
-      .json({
-        user: publicUser(user),
-        message:
-          config.MAIL_MODE === "filesystem"
-            ? "Invitation delivered to the local development outbox."
-            : "Invitation emailed.",
-      });
+    res.status(201).json({
+      user: publicUser(user),
+      message: localMailPreviewEnabled
+        ? "Invitation delivered to the local email preview."
+        : "Invitation emailed.",
+    });
   },
 );
 app.post(
@@ -583,14 +599,12 @@ export function finalize() {
       _next: express.NextFunction,
     ) => {
       if (error instanceof ApiError) {
-        res
-          .status(error.status)
-          .json({
-            code: error.code,
-            message: error.message,
-            fieldErrors: error.fields,
-            requestId: res.locals.requestId,
-          });
+        res.status(error.status).json({
+          code: error.code,
+          message: error.message,
+          fieldErrors: error.fields,
+          requestId: res.locals.requestId,
+        });
         return;
       }
       const code =
@@ -603,32 +617,26 @@ export function finalize() {
         "type" in error &&
         error.type === "entity.too.large"
       ) {
-        res
-          .status(413)
-          .json({
-            code: "BODY_TOO_LARGE",
-            message: "Request exceeds the 2 MiB body limit.",
-          });
+        res.status(413).json({
+          code: "BODY_TOO_LARGE",
+          message: "Request exceeds the 2 MiB body limit.",
+        });
         return;
       }
       if (code === "P2002") {
-        res
-          .status(409)
-          .json({
-            code: "CONFLICT",
-            message: "A record with these details already exists.",
-            requestId: res.locals.requestId,
-          });
+        res.status(409).json({
+          code: "CONFLICT",
+          message: "A record with these details already exists.",
+          requestId: res.locals.requestId,
+        });
         return;
       }
       if (code === "P2025") {
-        res
-          .status(404)
-          .json({
-            code: "NOT_FOUND",
-            message: "Record not found.",
-            requestId: res.locals.requestId,
-          });
+        res.status(404).json({
+          code: "NOT_FOUND",
+          message: "Record not found.",
+          requestId: res.locals.requestId,
+        });
         return;
       }
       if (error instanceof SyntaxError) {
@@ -638,13 +646,11 @@ export function finalize() {
         return;
       }
       console.error("Request failed", { requestId: res.locals.requestId });
-      res
-        .status(503)
-        .json({
-          code: "UNAVAILABLE",
-          message: "The service could not complete this request. Please retry.",
-          requestId: res.locals.requestId,
-        });
+      res.status(503).json({
+        code: "UNAVAILABLE",
+        message: "The service could not complete this request. Please retry.",
+        requestId: res.locals.requestId,
+      });
     },
   );
 }

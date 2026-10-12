@@ -19,7 +19,7 @@ import {
   csrf,
   type AuthRequest,
 } from "./http.js";
-import { deliverLink } from "./mail.js";
+import { deliverLink, localMailPreviewEnabled } from "./mail.js";
 export const authRouter = Router();
 authRouter.use(
   rateLimit({
@@ -109,8 +109,7 @@ authRouter.post("/signup", async (req, res) => {
   res.status(202).json({
     message:
       "If this email is eligible for student registration, an activation link will be sent. Open it within 24 hours to choose your password. Already activated? Log in or reset your password.",
-    delivery:
-      config.MAIL_MODE === "filesystem" ? "development-outbox" : "email",
+    delivery: localMailPreviewEnabled ? "local-preview" : "email",
   });
 });
 authRouter.post("/login", async (req: AuthRequest, res) => {
@@ -134,6 +133,17 @@ authRouter.post("/login", async (req: AuthRequest, res) => {
   const token = newToken(),
     csrfToken = newToken();
   await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id=${user.id}::uuid FOR UPDATE`;
+    const current = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+    if (
+      current.status !== "ACTIVE" ||
+      current.passwordHash !== user.passwordHash
+    )
+      throw new ApiError(
+        401,
+        "INVALID_CREDENTIALS",
+        "Email or password is incorrect.",
+      );
     if (req.auth)
       await tx.session.update({
         where: { id: req.auth.session.id },
@@ -166,6 +176,12 @@ async function consume(
 ) {
   const passwordHash = await hashPassword(password);
   return db.$transaction(async (tx) => {
+    const owner = await tx.authToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+      select: { userId: true },
+    });
+    if (owner)
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id=${owner.userId}::uuid FOR UPDATE`;
     const record = await tx.authToken.findUnique({
       where: { tokenHash: hashToken(token) },
       include: { user: true },
@@ -174,7 +190,6 @@ async function consume(
       !record ||
       record.purpose !== purpose ||
       record.usedAt ||
-      record.expiresAt <= new Date() ||
       record.user.status === "DEACTIVATED" ||
       (purpose === "ACTIVATION" && record.user.status !== "PENDING")
     )
@@ -182,6 +197,14 @@ async function consume(
         422,
         "TOKEN_INVALID",
         "This link is invalid, expired, or already used.",
+      );
+    if (record.expiresAt <= new Date())
+      throw new ApiError(
+        422,
+        "TOKEN_EXPIRED",
+        purpose === "ACTIVATION"
+          ? "This activation link has expired. Sign up again with the same email to request a new 24-hour link."
+          : "This password-reset link has expired. Request a new reset link.",
       );
     const claimed = await tx.authToken.updateMany({
       where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } },
@@ -236,6 +259,11 @@ authRouter.post("/password-reset", async (req, res) => {
   if (user?.status === "ACTIVE") {
     const token = newToken();
     await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id=${user.id}::uuid FOR UPDATE`;
+      const current = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      if (current.status !== "ACTIVE") return;
       await tx.authToken.updateMany({
         where: { userId: user.id, purpose: "RESET", usedAt: null },
         data: { usedAt: new Date() },
@@ -256,6 +284,7 @@ authRouter.post("/password-reset", async (req, res) => {
   }
   res.json({
     message: "If an active account exists, a reset link has been sent.",
+    delivery: localMailPreviewEnabled ? "local-preview" : "email",
   });
 });
 export async function invite(userId: string) {
@@ -268,6 +297,14 @@ export async function invite(userId: string) {
     );
   const token = newToken();
   await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id=${userId}::uuid FOR UPDATE`;
+    const current = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+    if (current.status !== "PENDING")
+      throw new ApiError(
+        409,
+        "ALREADY_ACTIVATED",
+        "This account is not waiting for activation.",
+      );
     await tx.authToken.updateMany({
       where: { userId, usedAt: null, purpose: "ACTIVATION" },
       data: { usedAt: new Date() },

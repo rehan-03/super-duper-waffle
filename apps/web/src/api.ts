@@ -27,7 +27,22 @@ export async function api<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const data = response.status === 204 ? {} : await response.json();
+  let data: {
+    code?: string;
+    message?: string;
+    fieldErrors?: Record<string, string[]>;
+  };
+  try {
+    data = response.status === 204 ? {} : await response.json();
+    if (data === null || typeof data !== "object")
+      throw new Error("Invalid response");
+  } catch {
+    throw new HttpError(
+      response.status,
+      "INVALID_RESPONSE",
+      "The service returned an unreadable response. Please retry.",
+    );
+  }
   if (!response.ok) {
     if (response.status === 401)
       window.dispatchEvent(new Event("session-expired"));
@@ -41,33 +56,40 @@ export async function api<T>(
   return data as T;
 }
 export function useData<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null),
-    [error, setError] = useState<Error | null>(null),
-    [loading, setLoading] = useState(true),
-    [version, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
+  const [result, setResult] = useState<{
+    path: string | null;
+    version: number;
+    data: T | null;
+    error: Error | null;
+    loading: boolean;
+  }>({ path, version, data: null, error: null, loading: !!path });
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
   useEffect(() => {
     let active = true;
-    setData(null);
-    setError(null);
-    if (!path) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    setResult({ path, version, data: null, error: null, loading: !!path });
+    if (!path) return;
     api<T>(path)
       .then((v) => {
-        if (active) setData(v);
+        if (active)
+          setResult({ path, version, data: v, error: null, loading: false });
       })
       .catch((e) => {
-        if (active) setError(e);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        if (active)
+          setResult({ path, version, data: null, error: e, loading: false });
       });
     return () => {
       active = false;
     };
   }, [path, version]);
-  return { data, error, loading, refresh };
+  const current =
+    result.path === path && result.version === version
+      ? result
+      : { data: null, error: null, loading: !!path };
+  return {
+    data: current.data,
+    error: current.error,
+    loading: current.loading,
+    refresh,
+  };
 }

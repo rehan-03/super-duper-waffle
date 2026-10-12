@@ -1,6 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { algorithms, type AlgorithmKey } from "@algolearn/shared";
+import {
+  algorithms,
+  algorithmKeys,
+  type AlgorithmKey,
+} from "@algolearn/shared";
 import { api, useData } from "./api";
 import { useAuth } from "./auth";
 import {
@@ -16,6 +20,59 @@ import {
 } from "./ui";
 import type { Progress, Quiz, Topic } from "./types";
 const Visualizer = lazy(() => import("./Visualizer"));
+export function VisualizerLibraryPage() {
+  return (
+    <>
+      <Header
+        eyebrow="INTERACTIVE ALGORITHM LAB"
+        title="Explore syllabus visualizations"
+        description="Run deterministic simulations for linear structures, trees, graph traversals, sorting and searching."
+      />
+      <div className="course-grid visualizer-library">
+        {algorithmKeys.map((key) => (
+          <Card key={key}>
+            <Badge>{algorithms[key].visualization}</Badge>
+            <h2>{algorithms[key].title}</h2>
+            <p>{algorithms[key].complexity}</p>
+            <p className="source-note">
+              {algorithms[key].syllabus.subjectCode} ·{" "}
+              {algorithms[key].syllabus.unit} · PDF page(s){" "}
+              {algorithms[key].syllabus.pages.join(", ")}
+            </p>
+            <Link className="text-action" to={`/visualizers/${key}`}>
+              Open simulation →
+            </Link>
+          </Card>
+        ))}
+      </div>
+    </>
+  );
+}
+export function VisualizerPage() {
+  const { algorithm } = useParams();
+  if (!algorithmKeys.includes(algorithm as AlgorithmKey))
+    return (
+      <Empty title="Visualization not found">
+        <Link to="/visualizers">Browse available simulations</Link>
+      </Empty>
+    );
+  const key = algorithm as AlgorithmKey;
+  return (
+    <>
+      <Link className="breadcrumb" to="/visualizers">
+        Visualizer lab /
+      </Link>
+      <Header
+        eyebrow={`${algorithms[key].syllabus.subjectCode} · ${algorithms[key].syllabus.unit}`}
+        title={algorithms[key].title}
+        description={algorithms[key].complexity}
+      />
+      <Suspense fallback={<Loading />}>
+        <Visualizer key={key} algorithm={key} />
+      </Suspense>
+    </>
+  );
+}
 export function TopicPage() {
   const { topicId } = useParams(),
     { user } = useAuth(),
@@ -154,7 +211,18 @@ export function TopicPage() {
           </div>
         ) : tab === "visualize" ? (
           <Suspense fallback={<Loading />}>
-            <Visualizer key={t.key} algorithm={t.key as AlgorithmKey} />
+            <Visualizer
+              key={t.key}
+              algorithm={t.key as AlgorithmKey}
+              mappedSource={{
+                code: t.sourceSubject?.code ?? "Official source",
+                title: t.sourceSubject?.title ?? t.unitLabel,
+                filename:
+                  t.sourceSubject?.source.filename ??
+                  algorithms[t.key as AlgorithmKey].syllabus.source,
+                pages: t.sourcePages,
+              }}
+            />
           </Suspense>
         ) : tab === "quiz" ? (
           <Card>
@@ -351,6 +419,30 @@ export function QuizPage() {
             <strong>{attempt.score}%</strong>
             <p>Quiz score</p>
           </div>
+          {attempt.progress && (
+            <Card>
+              <div className="row spread">
+                <h2>Mastery evidence</h2>
+                <Badge>{readable(attempt.progress.state)}</Badge>
+              </div>
+              <p>
+                {attempt.progress.score === null
+                  ? "Not enough distinct answered questions for a mastery estimate."
+                  : `Estimated mastery: ${attempt.progress.score}%.`}{" "}
+                Evidence: {attempt.progress.evidenceCount} distinct answered
+                question families.
+              </p>
+              <details>
+                <summary>How this estimate is calculated</summary>
+                <p>
+                  AlgoLearn uses the latest answers from up to 20 distinct
+                  question families across the last five completed attempts.
+                  Repeated families count only once. At least ten answered
+                  families are required before showing an estimate.
+                </p>
+              </details>
+            </Card>
+          )}
           {attempt.items.map((i) => (
             <Card key={i.id}>
               <Badge>
@@ -376,6 +468,20 @@ export function QuizPage() {
           <Link className="button primary" to={`/topics/${attempt.topicId}`}>
             Review topic and next steps
           </Link>
+          {!!attempt.recommendations?.length && (
+            <Card>
+              <h2>Recommended next</h2>
+              {attempt.recommendations.map((recommendation) => (
+                <div key={recommendation.topicId}>
+                  <h3>{recommendation.title}</h3>
+                  <p>{recommendation.reason}</p>
+                  <Link to={`/topics/${recommendation.topicId}`}>
+                    {recommendation.action} →
+                  </Link>
+                </div>
+              ))}
+            </Card>
+          )}
         </>
       ) : (
         <div className="quiz-grid">

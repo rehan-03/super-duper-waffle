@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { randomInt } from "node:crypto";
-import { algorithms, algorithmKeys, mastery, quizMix } from "@algolearn/shared";
+import { algorithms, algorithmKeys, quizMix } from "@algolearn/shared";
 import { db } from "./db.js";
 import { loadProgress, progressKey } from "./progress.js";
 import {
@@ -185,27 +185,48 @@ learningRouter.get(
 );
 learningRouter.get("/courses/:id/topics", async (req: AuthRequest, res) => {
   const course = await courseAccess(req, id(req.params.id));
+  const topics = course.publishedRevisionId
+    ? await db.courseTopic.findMany({
+        where: { revisionId: course.publishedRevisionId },
+        orderBy: { position: "asc" },
+        select: {
+          id: true,
+          key: true,
+          title: true,
+          unitLabel: true,
+          position: true,
+          objectives: true,
+          prerequisiteKeys: true,
+        },
+      })
+    : [];
+  const progressData =
+    req.auth!.user.role === "STUDENT"
+      ? await loadProgress(
+          [req.auth!.user.id],
+          topics.map((topic) => topic.id),
+        )
+      : null;
   res.json({
-    topics: course.publishedRevisionId
-      ? await db.courseTopic.findMany({
-          where: { revisionId: course.publishedRevisionId },
-          orderBy: { position: "asc" },
-          select: {
-            id: true,
-            key: true,
-            title: true,
-            unitLabel: true,
-            position: true,
-            prerequisiteKeys: true,
-          },
-        })
-      : [],
+    topics: topics.map((topic) => ({
+      ...topic,
+      ...(progressData
+        ? {
+            progress: progressData.get(
+              progressKey(req.auth!.user.id, topic.id),
+            ),
+          }
+        : {}),
+    })),
   });
 });
 learningRouter.get("/topics/:id", async (req: AuthRequest, res) => {
   const topic = await topicAccess(req, id(req.params.id));
   const problems = await db.problem.findMany({
-    where: { topicId: topic.id },
+    where: {
+      topicId: topic.id,
+      ...(req.auth!.user.role === "STUDENT" ? { reviewed: true } : {}),
+    },
     select: { id: true, title: true },
   });
   res.json({
@@ -317,6 +338,10 @@ async function attemptAccess(
 }
 learningRouter.get("/quiz-attempts/:id", async (req: AuthRequest, res) => {
   const a = await attemptAccess(req, id(req.params.id));
+  const learning =
+    a.status === "COMPLETED"
+      ? await courseProgress(req, a.topic.revision.courseId, a.studentId)
+      : null;
   res.json({
     attempt: {
       id: a.id,
@@ -340,6 +365,12 @@ learningRouter.get("/quiz-attempts/:id", async (req: AuthRequest, res) => {
             }
           : {}),
       })),
+      ...(learning
+        ? {
+            progress: await progress(a.studentId, a.topicId),
+            recommendations: recommendations(learning.topics),
+          }
+        : {}),
     },
   });
 });
@@ -652,7 +683,9 @@ learningRouter.put(
   async (req: AuthRequest, res) => {
     const r = await draftAccess(req, id(req.params.id)),
       b = parse(
-        z.object({ topicIds: z.array(z.uuid()).max(6) }).strict(),
+        z
+          .object({ topicIds: z.array(z.uuid()).max(algorithmKeys.length) })
+          .strict(),
         req.body,
       );
     const topics = await db.courseTopic.findMany({
@@ -703,13 +736,11 @@ learningRouter.post(
   async (req: AuthRequest, res) => {
     const t = await topicAccess(req, id(req.params.id), true, true),
       b = parse(questionBody, req.body);
-    res
-      .status(201)
-      .json({
-        question: await db.question.create({
-          data: { topicId: t.id, revisionNumber: t.revision.number, ...b },
-        }),
-      });
+    res.status(201).json({
+      question: await db.question.create({
+        data: { topicId: t.id, revisionNumber: t.revision.number, ...b },
+      }),
+    });
   },
 );
 learningRouter.patch(
@@ -770,23 +801,21 @@ learningRouter.post(
   async (req: AuthRequest, res) => {
     const t = await topicAccess(req, id(req.params.id), true, true),
       b = parse(problemBody, req.body);
-    res
-      .status(201)
-      .json({
-        problem: await db.problem.create({
-          data: {
-            topicId: t.id,
-            revisionNumber: t.revision.number,
-            title: b.title,
-            statement: b.statement,
-            starterCodes: b.starterCodes,
-            reviewed: b.reviewed,
-            tests: {
-              create: b.tests.map((tc, i) => ({ ...tc, position: i + 1 })),
-            },
+    res.status(201).json({
+      problem: await db.problem.create({
+        data: {
+          topicId: t.id,
+          revisionNumber: t.revision.number,
+          title: b.title,
+          statement: b.statement,
+          starterCodes: b.starterCodes,
+          reviewed: b.reviewed,
+          tests: {
+            create: b.tests.map((tc, i) => ({ ...tc, position: i + 1 })),
           },
-        }),
-      });
+        },
+      }),
+    });
   },
 );
 learningRouter.patch("/faculty/problems/:id", async (req: AuthRequest, res) => {
@@ -815,6 +844,7 @@ learningRouter.post(
     const r = await draftAccess(req, id(req.params.id));
     const result = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${r.courseId}))`;
+      await tx.$queryRaw`SELECT id FROM "CourseRevision" WHERE id=${r.id}::uuid FOR UPDATE`;
       const revision = await tx.courseRevision.findUniqueOrThrow({
         where: { id: r.id },
         include: {
@@ -827,6 +857,12 @@ learningRouter.post(
         },
       });
       const errors: string[] = [];
+      if (revision.status !== "DRAFT")
+        throw new ApiError(
+          409,
+          "IMMUTABLE",
+          "This revision is already published.",
+        );
       if (!revision.topics.length)
         errors.push("Add at least one learning topic.");
       const visiting = new Set<string>(),
@@ -927,6 +963,7 @@ async function facultyCourseData(
   return {
     total,
     course,
+    topics,
     students: members.map((m) => ({
       user: publicUser(m.user),
       course,
@@ -954,7 +991,7 @@ learningRouter.get(
   "/faculty/courses/:id/analytics",
   async (req: AuthRequest, res) => {
     const data = await facultyCourseData(req, id(req.params.id));
-    const topicSummaries = (data.students[0]?.topics ?? []).map((t) => ({
+    const topicSummaries = data.topics.map((t) => ({
       topicId: t.id,
       title: t.title,
       completed: data.students.filter(

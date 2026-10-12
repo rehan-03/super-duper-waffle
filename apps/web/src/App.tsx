@@ -29,7 +29,7 @@ import {
   Settings,
   FileClock,
 } from "lucide-react";
-import { AuthPage, useAuth } from "./auth";
+import { AuthPage, LocalMailPreviewPage, useAuth } from "./auth";
 import { Alert, Button, Empty, Loading } from "./ui";
 import {
   DashboardPage,
@@ -44,7 +44,12 @@ import {
   HealthPage,
   AccountPage,
 } from "./pages";
-import { TopicPage, QuizPage } from "./learning-pages";
+import {
+  TopicPage,
+  QuizPage,
+  VisualizerLibraryPage,
+  VisualizerPage,
+} from "./learning-pages";
 import { ContentPage, StudentsPage, StudentDetailPage } from "./faculty-pages";
 import type { Role } from "./types";
 const CodingPage = lazy(() => import("./CodingPage"));
@@ -117,6 +122,7 @@ function Shell() {
   const links = [
     { to: "/", label: "Overview", Icon: LayoutDashboard },
     { to: "/courses", label: "My courses", Icon: BookOpen },
+    { to: "/visualizers", label: "Visualizer lab", Icon: Activity },
     ...(user.role === "STUDENT"
       ? [{ to: "/progress", label: "Progress", Icon: ChartNoAxesCombined }]
       : [
@@ -248,11 +254,18 @@ function Shell() {
 export function App() {
   return (
     <Routes>
-      <Route path="/login" element={<AuthPage />} />
-      <Route path="/signup" element={<AuthPage />} />
-      <Route path="/activate" element={<AuthPage />} />
-      <Route path="/forgot-password" element={<AuthPage />} />
-      <Route path="/reset-password" element={<AuthPage />} />
+      <Route path="/login" element={<AuthPage key="login" />} />
+      <Route path="/signup" element={<AuthPage key="signup" />} />
+      <Route path="/activate" element={<AuthPage key="activate" />} />
+      <Route path="/dev/mail-preview" element={<LocalMailPreviewPage />} />
+      <Route
+        path="/forgot-password"
+        element={<AuthPage key="forgot-password" />}
+      />
+      <Route
+        path="/reset-password"
+        element={<AuthPage key="reset-password" />}
+      />
       <Route element={<Shell />}>
         <Route index element={<DashboardPage />} />
         <Route path="courses" element={<CoursesPage />} />
@@ -286,6 +299,8 @@ export function App() {
           }
         />
         <Route path="topics/:topicId" element={<TopicPage />} />
+        <Route path="visualizers" element={<VisualizerLibraryPage />} />
+        <Route path="visualizers/:algorithm" element={<VisualizerPage />} />
         <Route path="quizzes/:attemptId" element={<QuizPage />} />
         <Route path="problems/:problemId" element={<CodingPage />} />
         <Route

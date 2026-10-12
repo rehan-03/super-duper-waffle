@@ -4,10 +4,12 @@ import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const local = path.join(root, ".local");
 const data = path.join(local, "postgres");
 const envFile = path.join(root, ".env");
+dotenv.config({ path: envFile, quiet: true });
 const bin =
   process.env.POSTGRES_BIN || "C:\\Program Files\\PostgreSQL\\16\\bin";
 const exe = (name) =>
@@ -26,7 +28,9 @@ function run(name, args, extraEnv = {}) {
     env: { ...process.env, ...extraEnv },
   });
   if (result.status !== 0)
-    throw new Error(`${name} failed. ${result.stderr || result.stdout}`);
+    throw new Error(
+      `${name} failed (${result.error?.code ?? result.status}). Check .local/postgres.log for server startup failures.`,
+    );
   return result.stdout;
 }
 if (!existsSync(envFile)) {
@@ -35,9 +39,9 @@ if (!existsSync(envFile)) {
   await writeFile(envFile, content, { mode: 0o600 });
 }
 const envText = await readFile(envFile, "utf8");
-const match = envText.match(/^DATABASE_URL=(.+)$/m);
-if (!match) throw new Error("DATABASE_URL is missing.");
-const url = new URL(match[1].trim());
+const database = process.env.DATABASE_URL ?? dotenv.parse(envText).DATABASE_URL;
+if (!database) throw new Error("DATABASE_URL is missing.");
+const url = new URL(database);
 if (
   url.hostname !== "127.0.0.1" ||
   url.port !== "55432" ||

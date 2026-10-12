@@ -1,18 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import dotenv from "dotenv";
+import { configureTestEnvironment } from "../../../scripts/test-environment.mjs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-dotenv.config({ path: "../../.env", quiet: true });
-if (
-  !process.env.TEST_DATABASE_URL ||
-  new URL(process.env.TEST_DATABASE_URL).pathname !== "/algolearn_test"
-)
-  throw new Error("Tests require the dedicated test database.");
-process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
-process.env.NODE_ENV = "test";
+configureTestEnvironment();
+process.env.APP_ORIGIN = "http://localhost:5173";
 const { db } = await import("../src/db.js");
 const { app } = await import("../src/app.js");
 const { hashPassword, newToken, hashToken } = await import(
@@ -104,11 +98,12 @@ test("public signup verifies email before setting a password and cannot overwrit
     422,
   );
   const registrations = await Promise.all([
-    signup({ name: "New Student", email: email.toUpperCase() }),
+    signup({ name: "New Student", email: ` ${email.toUpperCase()} ` }),
     signup({ name: "New Student", email }),
   ]);
   for (const result of registrations) assert.equal(result.status, 202);
   assert.deepEqual(registrations[0]!.body, registrations[1]!.body);
+  assert.equal(registrations[0]!.body.delivery, "local-preview");
   const user = await db.user.findUniqueOrThrow({ where: { email } });
   assert.equal(user.name, "New Student");
   assert.equal(user.role, "STUDENT");
@@ -163,6 +158,34 @@ test("public signup verifies email before setting a password and cannot overwrit
     if (!token) await delay(20);
   }
   assert.ok(token, "A private activation message must be delivered");
+  const pendingToken = await db.authToken.findUniqueOrThrow({
+    where: { tokenHash: hashToken(token) },
+  });
+  const activationLifetime =
+    pendingToken.expiresAt.getTime() - pendingToken.createdAt.getTime();
+  assert.ok(
+    activationLifetime >= 86_399_000 && activationLifetime <= 86_401_000,
+    "Activation tokens must retain the 24-hour expiry",
+  );
+  const preview = await request(app).get("/api/v1/dev/mail-preview");
+  assert.equal(preview.status, 200);
+  assert.ok(
+    preview.body.messages.some(
+      (message: { to: string; purpose: string; actionUrl: string }) =>
+        message.to === email &&
+        message.purpose === "ACTIVATION" &&
+        message.actionUrl.startsWith("/activate#token="),
+    ),
+  );
+  assert.ok(
+    preview.body.messages.every(
+      (message: Record<string, unknown>) =>
+        !Object.keys(message).some((key) =>
+          ["path", "filename", "directory", "url"].includes(key.toLowerCase()),
+        ),
+    ),
+    "Preview responses must not expose storage paths or absolute URLs",
+  );
   const activation = await agent
     .post("/api/v1/auth/activate")
     .set("Origin", origin)
@@ -323,12 +346,45 @@ test("draft content validates before publication and published content is immuta
     });
     if (n === 0) problemId = p.id;
   }
-  const published = await agents.faculty
-    .post(`/api/v1/faculty/revisions/${revisionId}/publish`)
-    .set("Origin", origin)
-    .set("X-CSRF-Token", csrf.faculty!)
-    .send({});
-  assert.equal(published.status, 200);
+  const unreviewed = await db.problem.create({
+    data: {
+      topicId,
+      title: "Unreviewed test fixture",
+      statement: "This unreviewed fixture must never reach students.",
+      starterCodes: { c: "", cpp: "", java: "", python: "" },
+    },
+  });
+  const publications = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      agents.faculty
+        .post(`/api/v1/faculty/revisions/${revisionId}/publish`)
+        .set("Origin", origin)
+        .set("X-CSRF-Token", csrf.faculty!)
+        .send({}),
+    ),
+  );
+  assert.deepEqual(
+    publications.map((result) => result.status).sort(),
+    [200, 409],
+  );
+  const visible = await agents.student.get(`/api/v1/topics/${topicId}`);
+  assert.equal(visible.body.problems.length, 2);
+  const courseTopics = await agents.student.get(
+    `/api/v1/courses/${courseId}/topics`,
+  );
+  assert.equal(courseTopics.status, 200);
+  assert.deepEqual(courseTopics.body.topics[0].objectives, [
+    "Find the first matching index",
+  ]);
+  assert.equal(courseTopics.body.topics[0].progress.state, "UNASSESSED");
+  assert.equal(
+    (await agents.student.get(`/api/v1/problems/${unreviewed.id}`)).status,
+    404,
+  );
+  assert.equal(
+    (await agents.faculty.get(`/api/v1/problems/${unreviewed.id}`)).status,
+    200,
+  );
   const copied = await agents.faculty
     .post(`/api/v1/faculty/courses/${courseId}/revisions`)
     .set("Origin", origin)
@@ -358,6 +414,76 @@ test("draft content validates before publication and published content is immuta
     200,
   );
 });
+test("publication locks block concurrent edits and empty-course analytics retain topics", async () => {
+  const subject = await db.subject.findFirstOrThrow();
+  const course = await db.course.create({
+    data: {
+      code: "LOCK-FIXTURE",
+      title: "Publication lock fixture",
+      term: "Tests only",
+    },
+  });
+  const revision = await db.courseRevision.create({
+    data: { courseId: course.id, number: 1 },
+  });
+  const topic = await db.courseTopic.create({
+    data: {
+      revisionId: revision.id,
+      key: "linear-search",
+      title: "Lock fixture",
+      unitLabel: "Fixture",
+      position: 1,
+      lesson: "Test-only lesson for publication synchronization.",
+      objectives: [],
+      prerequisiteKeys: [],
+      sourceSubjectId: subject.id,
+      sourcePages: [subject.startPage],
+    },
+  });
+  let editing: Promise<boolean> | undefined;
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "CourseRevision" WHERE id=${revision.id}::uuid FOR UPDATE`;
+    editing = db.courseTopic
+      .update({
+        where: { id: topic.id },
+        data: { lesson: "Changed after validation" },
+      })
+      .then(
+        () => true,
+        () => false,
+      );
+    await delay(100);
+    await tx.courseRevision.update({
+      where: { id: revision.id },
+      data: { status: "PUBLISHED", publishedAt: new Date() },
+    });
+    await tx.course.update({
+      where: { id: course.id },
+      data: { publishedRevisionId: revision.id },
+    });
+  });
+  assert.equal(await editing, false);
+  assert.equal(
+    (await db.courseTopic.findUniqueOrThrow({ where: { id: topic.id } }))
+      .lesson,
+    topic.lesson,
+  );
+  const analytics = await agents.admin.get(
+    `/api/v1/faculty/courses/${course.id}/analytics`,
+  );
+  assert.equal(analytics.status, 200);
+  assert.equal(analytics.body.enrolledStudents, 0);
+  assert.deepEqual(analytics.body.topicSummaries, [
+    {
+      topicId: topic.id,
+      title: topic.title,
+      completed: 0,
+      weak: 0,
+      insufficientEvidence: 0,
+    },
+  ]);
+});
+
 test("quizzes autosave, grade on the server, resume and submit exactly once", async () => {
   const created = await agents.student
     .post(`/api/v1/topics/${topicId}/quiz-attempts`)
@@ -423,6 +549,9 @@ test("quizzes autosave, grade on the server, resume and submit exactly once", as
   );
   quiz = await agents.student.get(`/api/v1/quiz-attempts/${attemptId}`);
   assert.equal(quiz.body.attempt.items[0].correctOption, 0);
+  assert.equal(quiz.body.attempt.progress.state, "MASTERED");
+  assert.equal(quiz.body.attempt.progress.evidenceCount, 10);
+  assert.ok(Array.isArray(quiz.body.attempt.recommendations));
 });
 test("drafts have optimistic versions and hidden execution data never leaks", async () => {
   const path = `/api/v1/problems/${problemId}/drafts/python`;
@@ -675,7 +804,65 @@ test("password-reset consumption revokes sessions and expired sessions are rejec
       .send({ email: "absent@fixture.example" });
   assert.equal(known.status, 200);
   assert.deepEqual(known.body, unknown.body);
+  assert.equal(known.body.delivery, "local-preview");
+  let resetPreviewFound = false;
+  for (let attempt = 0; attempt < 100 && !resetPreviewFound; attempt++) {
+    const preview = await request(app).get("/api/v1/dev/mail-preview");
+    for (const message of preview.body.messages as Array<{
+      to: string;
+      purpose: string;
+      actionUrl: string;
+    }>) {
+      if (message.to !== "peer@fixture.example" || message.purpose !== "RESET")
+        continue;
+      const candidate =
+        new URLSearchParams(message.actionUrl.split("#")[1]).get("token") ?? "";
+      const active = await db.authToken.findUnique({
+        where: { tokenHash: hashToken(candidate) },
+      });
+      if (active && !active.usedAt) {
+        resetPreviewFound = true;
+        break;
+      }
+    }
+    if (!resetPreviewFound) await delay(20);
+  }
+  assert.equal(
+    resetPreviewFound,
+    true,
+    "The current reset link must be accessible through local preview",
+  );
 });
+test("simultaneous reset links cannot both change one account's password", async () => {
+  const account = await db.user.create({
+    data: {
+      email: "reset-race@fixture.example",
+      name: "Reset race fixture",
+      role: "STUDENT",
+      status: "ACTIVE",
+      passwordHash: await hashPassword(password),
+    },
+  });
+  const tokens = [newToken(), newToken()];
+  await db.authToken.createMany({
+    data: tokens.map((token) => ({
+      userId: account.id,
+      purpose: "RESET",
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + 60000),
+    })),
+  });
+  const results = await Promise.all(
+    tokens.map((token) =>
+      request(app)
+        .post("/api/v1/auth/password-reset/confirm")
+        .set("Origin", origin)
+        .send({ token, password }),
+    ),
+  );
+  assert.deepEqual(results.map((result) => result.status).sort(), [200, 422]);
+});
+
 test("activation links are single-use, deactivation immediately revokes sessions", async () => {
   const u = await db.user.create({
       data: {
@@ -721,6 +908,45 @@ test("activation links are single-use, deactivation immediately revokes sessions
   assert.ok(
     (await db.auditEvent.count({ where: { action: "USER_STATUS_CHANGED" } })) >
       0,
+  );
+});
+test("expired activation links fail clearly and leave the account pending", async () => {
+  const email = `expired-${crypto.randomUUID()}@fixture.example`;
+  const user = await db.user.create({
+      data: {
+        email,
+        name: "Expired activation fixture",
+        role: "STUDENT",
+        status: "PENDING",
+      },
+    }),
+    token = newToken();
+  await db.authToken.create({
+    data: {
+      userId: user.id,
+      purpose: "ACTIVATION",
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() - 1000),
+    },
+  });
+  const activation = await request(app)
+    .post("/api/v1/auth/activate")
+    .set("Origin", origin)
+    .send({ token, password });
+  assert.equal(activation.status, 422);
+  assert.equal(activation.body.code, "TOKEN_EXPIRED");
+  assert.match(activation.body.message, /expired/i);
+  const unchanged = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+  assert.equal(unchanged.status, "PENDING");
+  assert.equal(unchanged.passwordHash, null);
+  assert.equal(
+    (
+      await request(app)
+        .post("/api/v1/auth/login")
+        .set("Origin", origin)
+        .send({ email, password })
+    ).status,
+    401,
   );
 });
 test.after(async () => {

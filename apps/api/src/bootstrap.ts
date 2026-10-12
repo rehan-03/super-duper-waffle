@@ -10,7 +10,7 @@ if (existing) {
   if (existing.status === "PENDING" && existing.email === email) {
     await invite(existing.id);
     console.log(
-      "Pending administrator invitation resent to the private development outbox or configured SMTP.",
+      "Pending administrator invitation resent. Use the local email preview or configured inbox.",
     );
   } else
     console.log("An administrator already exists; no account was modified.");
@@ -40,7 +40,7 @@ if (existing) {
   });
   await deliverLink(user.email, "ACTIVATION", token);
   console.log(
-    "Administrator invitation delivered. Development links are in the ignored .local/outbox directory.",
+    "Administrator invitation delivered. Use the local email preview or configured inbox.",
   );
 }
 await db.$disconnect();

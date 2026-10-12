@@ -124,7 +124,7 @@ Save after two seconds idle; changing language loads its own draft. A 409 offers
 
 Faculty publishing: select references → order learning topics → objectives/prerequisites → lessons/questions/problems → review validation → publish immutable revision. Provide button-based Move up/down in addition to optional drag. Validate no prerequisite cycles and every topic's question difficulty coverage/problem readiness. Confirm which revision becomes active and preserve historical attempts. Official source text is read-only, never overwritten by author edits.
 
-Administrator invitations deliver a single-use activation link. Development delivery uses a private local outbox; production uses email. Deactivation confirmation names the account and explains immediate session revocation. Membership creation offers only role-compatible existing users. Course archive confirmation explains read-only access and disallows new learning mutations. Source inconsistencies are labeled “Needs faculty confirmation”; they must not silently become authored teaching content.
+Administrator invitations deliver a single-use activation link. Development delivery uses a loopback-only local email preview without displaying storage paths; production uses authenticated SMTP. Deactivation confirmation names the account and explains immediate session revocation. Membership creation offers only role-compatible existing users. Course archive confirmation explains read-only access and disallows new learning mutations. Source inconsistencies are labeled “Needs faculty confirmation”; they must not silently become authored teaching content.
 
 ## Motion specification
 

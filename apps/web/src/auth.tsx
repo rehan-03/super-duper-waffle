@@ -7,9 +7,18 @@ import {
   type FormEvent,
 } from "react";
 import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { api, setCsrf, HttpError } from "./api";
+import { api, setCsrf, HttpError, useData } from "./api";
 import type { User } from "./types";
-import { Alert, Button, Field, Loading } from "./ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Empty,
+  ErrorState,
+  Field,
+  Loading,
+} from "./ui";
 type Auth = {
   user: User | null;
   loading: boolean;
@@ -64,7 +73,7 @@ export function AuthPage() {
   const mode = location.pathname.slice(1),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
-    [developmentOutbox, setDevelopmentOutbox] = useState(false),
+    [localPreview, setLocalPreview] = useState(false),
     [busy, setBusy] = useState(false),
     [show, setShow] = useState(false);
   const [token] = useState(
@@ -75,7 +84,7 @@ export function AuthPage() {
       history.replaceState(null, "", window.location.pathname);
     setError("");
     setMessage("");
-    setDevelopmentOutbox(false);
+    setLocalPreview(false);
   }, [mode]);
   if (user && (mode === "login" || mode === "signup"))
     return <Navigate to="/" replace />;
@@ -121,12 +130,14 @@ export function AuthPage() {
           },
         );
         setMessage(r.message);
-        setDevelopmentOutbox(r.delivery === "development-outbox");
+        setLocalPreview(r.delivery === "local-preview");
       } else if (reset) {
-        const r = await api<{ message: string }>("/auth/password-reset", {
-          email,
-        });
+        const r = await api<{ message: string; delivery: string }>(
+          "/auth/password-reset",
+          { email },
+        );
         setMessage(r.message);
+        setLocalPreview(r.delivery === "local-preview");
       } else {
         await login(email, password);
         navigate("/");
@@ -195,12 +206,15 @@ export function AuthPage() {
           {message ? (
             <div className="notice" role="status">
               {message}
-              {developmentOutbox && (
+              {localPreview && (
                 <p>
-                  Local email delivery is enabled. Open your activation link
-                  from the private <code>C:\vs code\PBL1\.local\outbox</code>{" "}
-                  folder on this computer. No email is sent to your inbox in
-                  this mode.
+                  Development delivery is enabled. No external email was sent.
+                  Use the loopback-only local email preview on this computer.
+                </p>
+              )}
+              {localPreview && (
+                <p>
+                  <Link to="/dev/mail-preview">Open local email preview</Link>
                 </p>
               )}
               <p>
@@ -300,6 +314,114 @@ export function AuthPage() {
             course enrollment, are managed by your institution.
           </p>
         </form>
+      </div>
+    </main>
+  );
+}
+type LocalMail = {
+  to: string;
+  purpose: "ACTIVATION" | "RESET";
+  subject: string;
+  createdAt: string;
+  actionUrl: string;
+};
+export function LocalMailPreviewPage() {
+  const { data, error, loading, refresh } = useData<{
+      messages: LocalMail[];
+    }>("/dev/mail-preview"),
+    [filter, setFilter] = useState("");
+  useEffect(() => {
+    if (error) return;
+    const timer = window.setInterval(refresh, 2000);
+    return () => window.clearInterval(timer);
+  }, [error, refresh]);
+  const messages = (data?.messages ?? []).filter((message) =>
+    message.to.toLowerCase().includes(filter.trim().toLowerCase()),
+  );
+  return (
+    <main className="auth-layout">
+      <div className="auth-art">
+        <Link to="/login" className="brand">
+          <span className="brand-icon">A</span> AlgoLearn
+        </Link>
+        <div>
+          <p className="eyebrow">SAFE LOCAL DELIVERY</p>
+          <h2>
+            Verify locally.
+            <br />
+            Keep tokens
+            <br />
+            <span>private.</span>
+          </h2>
+          <p>
+            Preview development messages without exposing server filesystem
+            paths in the browser.
+          </p>
+        </div>
+        <small>Loopback development access only</small>
+      </div>
+      <div className="auth-form-wrap">
+        <section className="mail-preview" aria-labelledby="mail-preview-title">
+          <BadgeMark />
+          <p className="eyebrow">DEVELOPMENT ONLY</p>
+          <h1 id="mail-preview-title">Local email preview</h1>
+          <p className="subtitle">
+            Activation and password-reset messages generated on this loopback
+            development server appear here. This page is disabled in production.
+          </p>
+          <div className="row spread">
+            <Link to="/login">Return to log in</Link>
+            <Button kind="secondary" type="button" onClick={refresh}>
+              Refresh
+            </Button>
+          </div>
+          <Field label="Filter by recipient">
+            <input
+              type="search"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              autoComplete="off"
+            />
+          </Field>
+          {error ? (
+            <ErrorState error={error} retry={refresh} />
+          ) : loading && !data ? (
+            <Loading />
+          ) : messages.length === 0 ? (
+            <Empty title="No matching messages">
+              <p>
+                Submit signup or password reset, then wait a moment or refresh.
+              </p>
+            </Empty>
+          ) : (
+            <div className="card-stack" aria-live="polite">
+              {messages.map((message) => (
+                <Card
+                  key={`${message.createdAt}-${message.to}-${message.purpose}`}
+                  className="mail-preview-card"
+                >
+                  <div className="row spread">
+                    <Badge>
+                      {message.purpose === "ACTIVATION"
+                        ? "Activation"
+                        : "Password reset"}
+                    </Badge>
+                    <time dateTime={message.createdAt}>
+                      {new Date(message.createdAt).toLocaleString()}
+                    </time>
+                  </div>
+                  <h2>{message.subject}</h2>
+                  <p>{message.to}</p>
+                  <a className="button primary" href={message.actionUrl}>
+                    Open{" "}
+                    {message.purpose === "ACTIVATION" ? "activation" : "reset"}{" "}
+                    link
+                  </a>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

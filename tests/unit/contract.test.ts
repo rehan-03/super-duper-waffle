@@ -30,5 +30,5 @@ test("the OpenAPI contract covers every implemented route and its path parameter
       operations++;
     }
   }
-  expect(operations).toBe(57);
+  expect(operations).toBe(58);
 });

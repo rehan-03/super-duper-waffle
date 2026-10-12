@@ -7,6 +7,7 @@ COPY packages/shared/package.json packages/shared/package.json
 RUN npm ci
 COPY apps apps
 COPY packages packages
+COPY Syllabus Syllabus
 RUN DATABASE_URL=postgresql://build:unused@localhost:5432/algolearn npm run db:generate && npm run build
 
 FROM build AS migrations

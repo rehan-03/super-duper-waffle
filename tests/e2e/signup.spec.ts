@@ -1,7 +1,5 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { readdir, readFile } from "node:fs/promises";
-import path from "node:path";
 
 test("student can sign up, activate, log in, and see a real empty dashboard", async ({
   page,
@@ -32,7 +30,7 @@ test("student can sign up, activate, log in, and see a real empty dashboard", as
       .filter({ hasText: "activation link will be sent" }),
   ).toBeVisible();
   await expect(
-    page.getByText("No email is sent to your inbox in this mode.", {
+    page.getByText("No external email was sent.", {
       exact: false,
     }),
   ).toBeVisible();
@@ -41,33 +39,14 @@ test("student can sign up, activate, log in, and see a real empty dashboard", as
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  const outbox = path.resolve(".local/outbox");
-  let activationPath = "";
-  await expect
-    .poll(async () => {
-      for (const filename of (await readdir(outbox))
-        .filter((f) => f.endsWith(".json"))
-        .sort()
-        .reverse()) {
-        let message;
-        try {
-          message = JSON.parse(
-            await readFile(path.join(outbox, filename), "utf8"),
-          );
-        } catch {
-          continue;
-        }
-        if (message.to === email && message.purpose === "ACTIVATION") {
-          const url = new URL(message.url);
-          activationPath = url.pathname + url.hash;
-          return true;
-        }
-      }
-      return false;
-    })
-    .toBe(true);
-  // Only the isolated test recipient's token is used, never institutional mail.
-  await page.goto(activationPath);
+  await page.getByRole("link", { name: "Open local email preview" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Local email preview" }),
+  ).toBeVisible();
+  await page.getByLabel("Filter by recipient").fill(email);
+  const message = page.locator(".mail-preview-card").filter({ hasText: email });
+  await expect(message).toBeVisible();
+  await message.getByRole("link", { name: "Open activation link" }).click();
   await page
     .getByLabel("New password", { exact: true })
     .fill("Signup-browser-fixture-password-2026");

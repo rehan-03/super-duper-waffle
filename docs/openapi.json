@@ -45,6 +45,69 @@
         }
       }
     },
+    "/dev/mail-preview": {
+      "get": {
+        "operationId": "get_local_mail_preview",
+        "summary": "Preview development activation and reset messages",
+        "tags": ["Authentication"],
+        "security": [],
+        "x-roles": [],
+        "description": "Available only when filesystem delivery, the configured hosts, and the requesting socket are all loopback-only. Disabled in production. Returns browser action URLs without filesystem paths.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Recent local development messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["messages"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "to",
+                          "purpose",
+                          "subject",
+                          "createdAt",
+                          "actionUrl"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                          "to": { "type": "string", "format": "email" },
+                          "purpose": {
+                            "type": "string",
+                            "enum": ["ACTIVATION", "RESET"]
+                          },
+                          "subject": { "type": "string" },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "actionUrl": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Local preview is disabled or the request is not loopback",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "operationId": "get_me",
@@ -3561,7 +3624,7 @@
                     },
                     "delivery": {
                       "type": "string",
-                      "enum": ["development-outbox", "email"]
+                      "enum": ["local-preview", "email"]
                     }
                   }
                 }

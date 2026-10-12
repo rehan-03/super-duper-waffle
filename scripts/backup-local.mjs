@@ -1,10 +1,11 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import dotenv from "dotenv";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 const root = fileURLToPath(new URL("../", import.meta.url));
-const text = await readFile(path.join(root, ".env"), "utf8");
-const url = new URL(text.match(/^DATABASE_URL=(.+)$/m)?.[1]?.trim() ?? "");
+dotenv.config({ path: path.join(root, ".env"), quiet: true });
+const url = new URL(process.env.DATABASE_URL ?? "");
 if (
   url.hostname !== "127.0.0.1" ||
   url.port !== "55432" ||

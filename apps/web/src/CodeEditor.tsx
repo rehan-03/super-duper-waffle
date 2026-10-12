@@ -18,10 +18,12 @@ export default function CodeEditor({
   language,
   source,
   onChange,
+  readOnly = false,
 }: {
   language: string;
   source: string;
   onChange: (v: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <Editor
@@ -31,6 +33,7 @@ export default function CodeEditor({
       onChange={(v) => onChange(v ?? "")}
       theme="vs-dark"
       options={{
+        readOnly,
         fontSize: 14,
         minimap: { enabled: false },
         automaticLayout: true,
