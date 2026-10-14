@@ -50,3 +50,38 @@ test("sign-in and all role dashboards pass automated accessibility checks", asyn
     ).toBeVisible();
   }
 });
+
+for (const viewport of [
+  { width: 1280, height: 480 },
+  { width: 390, height: 480 },
+]) {
+  test(`admin navigation and sign out remain reachable at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/login");
+    await page
+      .getByLabel("Email", { exact: true })
+      .fill("admin@browser.fixture");
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill("Browser-fixture-password-2026");
+    await page.getByRole("button", { name: "Log in", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+    if (viewport.width < 768)
+      await page.getByRole("button", { name: "Open navigation" }).click();
+    await page.getByRole("link", { name: "Account", exact: true }).click();
+    await expect(page).toHaveURL(/\/account$/);
+    if (viewport.width < 768)
+      await page.getByRole("button", { name: "Open navigation" }).click();
+    await page
+      .getByRole(viewport.width < 768 ? "dialog" : "complementary", {
+        name: "Primary navigation",
+      })
+      .getByRole("button", { name: "Sign out", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Welcome back" }),
+    ).toBeVisible();
+  });
+}

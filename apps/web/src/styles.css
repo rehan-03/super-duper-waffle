@@ -960,6 +960,7 @@ th {
   padding: 28px 20px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   z-index: 40;
 }
 .sidebar-brand {
