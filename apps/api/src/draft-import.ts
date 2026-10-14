@@ -43,12 +43,6 @@ export async function importLearningDrafts(
             _max: { position: true },
           })
         )._max.position ?? 0;
-      if (position + selected.length > 2000)
-        throw new ApiError(
-          422,
-          "TOPIC_LIMIT",
-          "A revision supports at most 2000 topics.",
-        );
       let imported = 0,
         skipped = 0;
       for (const draft of selected) {
@@ -70,6 +64,12 @@ export async function importLearningDrafts(
           skipped++;
           continue;
         }
+        if (position >= 2000)
+          throw new ApiError(
+            422,
+            "TOPIC_LIMIT",
+            "A revision supports at most 2000 topics.",
+          );
         const unit = subject.units.find((u) => u.number === d.sourceUnit),
           sourceTopic = unit?.topics.find(
             (t) => t.position === d.sourcePosition,

@@ -480,14 +480,12 @@ function TopicForm({
         version: topic?.version,
         visualizerKey: f.get("visualizerKey") || null,
         requiredActivities: ["LESSON", ...f.getAll("activities")],
-        blockedActivities: String(f.get("practicalReason") ?? "").trim()
-          ? [
-              {
-                activity: "PRACTICAL",
-                reason: String(f.get("practicalReason")).trim(),
-              },
-            ]
-          : [],
+        blockedActivities: ["LESSON", "QUIZ", "CODING", "PRACTICAL"]
+          .map((activity) => ({
+            activity,
+            reason: String(f.get(`blocked-${activity}`) ?? "").trim(),
+          }))
+          .filter((block) => block.reason),
         sourceTopicIds: String(f.get("sourceTopicIds") ?? "")
           .split(/[\s,]+/)
           .filter(Boolean),
@@ -576,18 +574,29 @@ function TopicForm({
           </label>
         ))}
       </fieldset>
-      <Field
-        label="External practical blocked reason"
-        hint="Required for hardware, SQL, GPU, networking or external-tool activities. These cannot earn coding completion."
-      >
-        <textarea
-          name="practicalReason"
-          defaultValue={
-            topic?.blockedActivities.find((b) => b.activity === "PRACTICAL")
-              ?.reason ?? ""
+      {["LESSON", "QUIZ", "CODING", "PRACTICAL"].map((activity) => (
+        <Field
+          key={activity}
+          label={
+            activity === "PRACTICAL"
+              ? "External practical blocked reason"
+              : `${readable(activity)} blocked reason`
           }
-        />
-      </Field>
+          hint={
+            activity === "PRACTICAL"
+              ? "Required for hardware, SQL, GPU, networking or external-tool activities. These cannot earn coding completion."
+              : "Leave empty when this activity is available."
+          }
+        >
+          <textarea
+            name={`blocked-${activity}`}
+            defaultValue={
+              topic?.blockedActivities.find((b) => b.activity === activity)
+                ?.reason ?? ""
+            }
+          />
+        </Field>
+      ))}
       <Field
         label="Source topic IDs"
         hint="Optional comma-separated source paragraph IDs from the selected official unit."

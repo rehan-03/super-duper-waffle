@@ -114,3 +114,101 @@ test("faculty coverage and import studio have accessible usable controls", async
     page.getByText("Incomplete source groups remain blocked", { exact: false }),
   ).toBeVisible();
 });
+
+test("saving a lesson preserves quiz and coding blockers and allows explicit removal", async ({
+  page,
+}) => {
+  await login(page, "faculty");
+  const { csrfToken } = await (await page.request.get("/api/v1/me")).json();
+  const headers = {
+    Origin: new URL(page.url()).origin,
+    "X-CSRF-Token": csrfToken,
+  };
+  const { courses } = await (await page.request.get("/api/v1/courses")).json();
+  const course = courses.find(
+    (c: { code: string }) => c.code === "ACTIVITY-BROWSER",
+  );
+  const created = await page.request.post(
+    `/api/v1/faculty/courses/${course.id}/revisions`,
+    { headers, data: {} },
+  );
+  expect(created.ok()).toBe(true);
+  const { revision } = await created.json();
+  const { revisions } = await (
+    await page.request.get(`/api/v1/faculty/courses/${course.id}/revisions`)
+  ).json();
+  const source = revisions.find((r: { id: string }) => r.id === revision.id)
+    .topics[0];
+  const blockedActivities = [
+    {
+      activity: "QUIZ",
+      reason: "Quiz questions are awaiting assessment review.",
+    },
+    {
+      activity: "CODING",
+      reason: "Coding infrastructure is awaiting verification.",
+    },
+  ];
+  const topicResponse = await page.request.post(
+    `/api/v1/faculty/revisions/${revision.id}/topics`,
+    {
+      headers,
+      data: {
+        key: "blocker-save-fixture",
+        title: "Blocker save fixture",
+        unitLabel: source.unitLabel,
+        lesson: source.lesson,
+        objectives: source.objectives,
+        sourceSubjectId: source.sourceSubjectId,
+        sourcePages: source.sourcePages,
+        requiredActivities: ["LESSON", "QUIZ", "CODING"],
+        blockedActivities,
+      },
+    },
+  );
+  expect(topicResponse.ok()).toBe(true);
+  const { topic } = await topicResponse.json();
+  await page.goto(`/faculty/courses/${course.id}`);
+  await page.getByRole("button", { name: /^Blocker save fixture/ }).click();
+  const editor = page
+    .locator("form")
+    .filter({ has: page.getByLabel("Learning topic key") })
+    .filter({ has: page.locator('input[value="blocker-save-fixture"]') });
+  await expect(editor.getByLabel("Quiz blocked reason")).toHaveValue(
+    blockedActivities[0].reason,
+  );
+  await expect(editor.getByLabel("Coding blocked reason")).toHaveValue(
+    blockedActivities[1].reason,
+  );
+  await editor
+    .getByLabel("Lesson", { exact: true })
+    .fill(
+      "Updated lesson explanation with a worked example for this regression fixture.",
+    );
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/faculty/topics/${topic.id}`) &&
+      response.request().method() === "PATCH",
+  );
+  await editor.getByRole("button", { name: "Save lesson draft" }).click();
+  const response = await saved;
+  expect(response.ok()).toBe(true);
+  expect((await response.json()).topic.blockedActivities).toEqual(
+    blockedActivities,
+  );
+  await expect(editor.getByLabel("Coding blocked reason")).toHaveValue(
+    blockedActivities[1].reason,
+  );
+  await editor.getByLabel("Coding blocked reason").fill("");
+  const cleared = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/faculty/topics/${topic.id}`) &&
+      response.request().method() === "PATCH",
+  );
+  await editor.getByRole("button", { name: "Save lesson draft" }).click();
+  const clearedResponse = await cleared;
+  expect(clearedResponse.ok()).toBe(true);
+  expect((await clearedResponse.json()).topic.blockedActivities).toEqual([
+    blockedActivities[0],
+  ]);
+});

@@ -295,6 +295,37 @@ test("draft imports are idempotent, source-scoped, unreviewed and create no lear
   assert.equal((await student.get("/api/v1/faculty/coverage")).status, 403);
   assert.equal((await student.get(`/api/v1/topics/${topic.id}`)).status, 404);
 });
+test("draft reimports at the topic limit skip existing content and reject new content atomically", async () => {
+  const revision = await db.courseRevision.create({
+    data: { courseId, number: 2 },
+  });
+  const route = `/faculty/revisions/${revision.id}/import-drafts`;
+  assert.equal(
+    (await post(route, { keys: ["draft-linear-search"] })).status,
+    201,
+  );
+  await db.courseTopic.createMany({
+    data: Array.from({ length: 1999 }, (_, i) => ({
+      ...body(`limit-fixture-${i}`),
+      revisionId: revision.id,
+      position: i + 2,
+    })),
+  });
+  const repeated = await post(route, { keys: ["draft-linear-search"] });
+  assert.equal(repeated.status, 201);
+  assert.equal(repeated.body.imported, 0);
+  assert.equal(repeated.body.skipped, 1);
+  const overflow = await post(route, {
+    keys: ["draft-linear-search", "source-2300118a-u4-p1"],
+  });
+  assert.equal(overflow.status, 422);
+  assert.equal(overflow.body.code, "TOPIC_LIMIT");
+  assert.equal(
+    await db.courseTopic.count({ where: { revisionId: revision.id } }),
+    2000,
+  );
+});
+
 test("every complete coding draft has bounded coherent assessments and source provenance", () => {
   const complete = learningDrafts.filter(
     (d) => d.authoringStatus === "COMPLETE_DRAFT",
