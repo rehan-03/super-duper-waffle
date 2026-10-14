@@ -24,6 +24,8 @@
     "db:migrate": "npm run db:migrate -w @algolearn/api",
     "db:seed": "npm run db:seed -w @algolearn/api",
     "db:seed:courses": "npm run db:seed:courses -w @algolearn/api",
+    "db:seed:demo": "npm run db:seed:demo -w @algolearn/api",
+    "db:seed:drafts": "npm run db:seed:drafts -w @algolearn/api",
     "setup:local": "node scripts/setup-local.mjs",
     "db:stop": "node scripts/stop-local.mjs",
     "bootstrap:admin": "npm run bootstrap:admin -w @algolearn/api",

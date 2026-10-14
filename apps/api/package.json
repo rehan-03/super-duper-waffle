@@ -14,6 +14,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx src/seed.ts",
     "db:seed:courses": "tsx src/seed-courses.ts",
+    "db:seed:demo": "tsx src/seed-demo-users.ts",
+    "db:seed:drafts": "tsx src/seed-drafts.ts",
     "bootstrap:admin": "tsx src/bootstrap.ts"
   },
   "dependencies": {

@@ -14,4 +14,12 @@ The PRD is authoritative. The following clarify its missing decisions and are ex
 
 ## User-requested authentication amendment
 
-The user explicitly requested public sign-up/login options after the original institution-provisioned account requirement. Public registration is now supported for students only. A new record is pending and has no password until its single-use activation link verifies email ownership and sets a password. Faculty/admin accounts and all course enrollment remain administrator-managed. Existing accounts are never overwritten; duplicate registration returns the same generic accepted response, and a pending student can request a fresh activation link. Registration is rate limited and audited, with no invented learning activity. The original PRD is preserved; this amendment records the later instruction.
+The user explicitly requested public sign-up/login options after the original institution-provisioned account requirement. Public registration is now supported for students only. A new record is pending and has no password until its single-use activation link verifies email ownership and sets a password. Faculty/admin accounts and all course enrollment remain administrator-managed. Existing accounts are never overwritten; duplicate registration returns the same generic accepted response, and a pending student can request a fresh activation link. Registration is rate limited and audited, with no invented learning activity. The original PRD was superseded by the syllabus-wide requirements revision; the baseline copy is retained in the local implementation snapshot.
+
+## Syllabus enhancement decisions
+
+- Existing published rows use LEGACY_V1 completion; new and copied drafts use declared ACTIVITIES_V1 requirements. No historical evidence is copied into new topic rows.
+- Visualizations are optional exploration. External practical requirements never translate to accepted four-language coding. The practical evidence workflow remains unsupported and is displayed as blocked.
+- Imported study notes remain INCOMPLETE unless topic-specific explanations and applicable assessments have actually been authored. Source availability and incomplete authoring are different statuses. Complete supplemental modules do not close a full source group automatically.
+- Explicit saved-version human review records identity/time; SQL triggers invalidate it on material or test edits. Automated validation and import cannot approve content.
+- The local draft provisioner imports only DEV offerings and separate unassigned review shelves for conditional exits. It does not select institutional electives or change enrollment.

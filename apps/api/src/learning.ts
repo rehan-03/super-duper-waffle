@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { randomInt } from "node:crypto";
-import { algorithms, algorithmKeys, quizMix } from "@algolearn/shared";
+import { quizMix } from "@algolearn/shared";
 import { db } from "./db.js";
 import { loadProgress, progressKey } from "./progress.js";
 import {
@@ -13,40 +13,12 @@ import {
   publicUser,
   type AuthRequest,
 } from "./http.js";
+import { blocks } from "./content-validation.js";
+import { executionConfigured } from "./execution-config.js";
+import { contentRouter } from "./content-router.js";
+import { topicAccess } from "./topic-access.js";
+export { topicAccess } from "./topic-access.js";
 export const learningRouter = Router();
-export async function topicAccess(
-  req: AuthRequest,
-  topicId: string,
-  write = false,
-  author = false,
-) {
-  const topic = await db.courseTopic.findUnique({
-    where: { id: topicId },
-    include: {
-      revision: true,
-      sourceSubject: {
-        include: { source: true, academicYear: true, semester: true },
-      },
-    },
-  });
-  if (!topic) throw new ApiError(404, "NOT_FOUND", "Topic not found.");
-  await courseAccess(req, topic.revision.courseId, write);
-  if (
-    req.auth!.user.role === "STUDENT" &&
-    topic.revision.status !== "PUBLISHED"
-  )
-    throw new ApiError(404, "NOT_FOUND", "Topic not found.");
-  if (
-    author &&
-    (req.auth!.user.role === "STUDENT" || topic.revision.status !== "DRAFT")
-  )
-    throw new ApiError(
-      409,
-      "IMMUTABLE",
-      "Published content is read-only. Create a new draft revision.",
-    );
-  return topic;
-}
 export async function progress(studentId: string, topicId: string) {
   return (await loadProgress([studentId], [topicId])).get(
     progressKey(studentId, topicId),
@@ -94,6 +66,7 @@ function recommendations(
       const p = topics.find((x) => x.key === key);
       if (
         p &&
+        p.requiredActivities.includes("QUIZ") &&
         ["UNASSESSED", "INSUFFICIENT_EVIDENCE", "WEAK"].includes(
           p.progress.state,
         )
@@ -113,7 +86,11 @@ function recommendations(
       a.position - b.position,
   );
   for (const t of ordered)
-    if (t.progress.state !== "MASTERED")
+    if (
+      t.requiredActivities.includes("QUIZ") &&
+      !blocks(t.blockedActivities).some((b) => b.activity === "QUIZ") &&
+      t.progress.state !== "MASTERED"
+    )
       add(
         t,
         t.progress.score === null
@@ -127,7 +104,8 @@ function recommendations(
     if (
       t.prerequisiteKeys.every(
         (key) =>
-          topics.find((x) => x.key === key)?.progress.state === "MASTERED",
+          topics.find((x) => x.key === key)?.progress.state === "MASTERED" ||
+          topics.find((x) => x.key === key)?.progress.completed === true,
       ) &&
       !t.progress.completed
     )
@@ -185,13 +163,27 @@ learningRouter.get(
 );
 learningRouter.get("/courses/:id/topics", async (req: AuthRequest, res) => {
   const course = await courseAccess(req, id(req.params.id));
+  const page = parse(
+    z.coerce.number().int().min(1).max(10000).default(1),
+    req.query.page,
+  );
+  const total = course.publishedRevisionId
+    ? await db.courseTopic.count({
+        where: { revisionId: course.publishedRevisionId },
+      })
+    : 0;
   const topics = course.publishedRevisionId
     ? await db.courseTopic.findMany({
         where: { revisionId: course.publishedRevisionId },
         orderBy: { position: "asc" },
+        skip: (page - 1) * 100,
+        take: 100,
         select: {
           id: true,
           key: true,
+          visualizerKey: true,
+          requiredActivities: true,
+          blockedActivities: true,
           title: true,
           unitLabel: true,
           position: true,
@@ -208,6 +200,9 @@ learningRouter.get("/courses/:id/topics", async (req: AuthRequest, res) => {
         )
       : null;
   res.json({
+    page,
+    pageSize: 100,
+    total,
     topics: topics.map((topic) => ({
       ...topic,
       ...(progressData
@@ -231,6 +226,26 @@ learningRouter.get("/topics/:id", async (req: AuthRequest, res) => {
   });
   res.json({
     topic,
+    availability: {
+      quiz:
+        topic.requiredActivities.includes("QUIZ") &&
+        !blocks(topic.blockedActivities).some((b) => b.activity === "QUIZ"),
+      coding:
+        executionConfigured &&
+        !blocks(topic.blockedActivities).some((b) => b.activity === "CODING"),
+      blocked: [
+        ...blocks(topic.blockedActivities),
+        ...(!executionConfigured && topic.requiredActivities.includes("CODING")
+          ? [
+              {
+                activity: "CODING",
+                reason:
+                  "An isolated execution provider has not been configured and verified. You can save drafts; coding completion requires a real accepted submission.",
+              },
+            ]
+          : []),
+      ],
+    },
     problems,
     progress:
       req.auth!.user.role === "STUDENT"
@@ -267,6 +282,15 @@ learningRouter.post(
   async (req: AuthRequest, res) => {
     const topic = await topicAccess(req, id(req.params.id), true),
       studentId = req.auth!.user.id;
+    if (
+      !topic.requiredActivities.includes("QUIZ") ||
+      blocks(topic.blockedActivities).some((b) => b.activity === "QUIZ")
+    )
+      throw new ApiError(
+        409,
+        "ACTIVITY_UNAVAILABLE",
+        "Quiz practice is not available for this topic.",
+      );
     const result = await db.$transaction(async (tx) => {
       // Serialize create/resume and grading per learner/topic.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${studentId + topic.id}))`;
@@ -479,461 +503,8 @@ learningRouter.get(
   },
 );
 
-// Content authoring is course-scoped and separated from official curriculum records.
+learningRouter.use(contentRouter);
 learningRouter.use("/faculty", requireRole("FACULTY", "ADMIN"));
-async function draftAccess(req: AuthRequest, revisionId: string) {
-  const r = await db.courseRevision.findUnique({ where: { id: revisionId } });
-  if (!r) throw new ApiError(404, "NOT_FOUND", "Revision not found.");
-  await courseAccess(req, r.courseId, true);
-  if (r.status !== "DRAFT")
-    throw new ApiError(
-      409,
-      "IMMUTABLE",
-      "Create a draft to edit published content.",
-    );
-  return r;
-}
-learningRouter.get(
-  "/faculty/courses/:id/revisions",
-  async (req: AuthRequest, res) => {
-    const course = await courseAccess(req, id(req.params.id));
-    res.json({
-      revisions: await db.courseRevision.findMany({
-        where: { courseId: course.id },
-        orderBy: { number: "desc" },
-        include: {
-          topics: {
-            orderBy: { position: "asc" },
-            include: {
-              questions: true,
-              problems: {
-                include: { tests: { orderBy: { position: "asc" } } },
-              },
-            },
-          },
-        },
-      }),
-    });
-  },
-);
-learningRouter.post(
-  "/faculty/courses/:id/revisions",
-  async (req: AuthRequest, res) => {
-    const course = await courseAccess(req, id(req.params.id), true);
-    const revision = await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${course.id}))`;
-      const pending = await tx.courseRevision.findFirst({
-        where: { courseId: course.id, status: "DRAFT" },
-      });
-      if (pending) return pending;
-      const latest = await tx.courseRevision.findFirst({
-        where: { courseId: course.id },
-        orderBy: { number: "desc" },
-        include: {
-          topics: {
-            include: {
-              questions: true,
-              problems: { include: { tests: true } },
-            },
-          },
-        },
-      });
-      const number = (latest?.number ?? 0) + 1;
-      const copiedTopics = latest?.topics.map((t) => ({
-        key: t.key,
-        title: t.title,
-        unitLabel: t.unitLabel,
-        position: t.position,
-        lesson: t.lesson,
-        objectives: t.objectives,
-        prerequisiteKeys: t.prerequisiteKeys,
-        reviewed: false,
-        sourceSubjectId: t.sourceSubjectId,
-        sourceUnitId: t.sourceUnitId,
-        sourcePages: t.sourcePages,
-        questions: {
-          create: t.questions.map((q) => ({
-            familyId: q.familyId,
-            revisionNumber: number,
-            objective: q.objective,
-            difficulty: q.difficulty,
-            prompt: q.prompt,
-            options: q.options!,
-            correctOption: q.correctOption,
-            explanation: q.explanation,
-            reviewed: false,
-          })),
-        },
-        problems: {
-          create: t.problems.map((p) => ({
-            familyId: p.familyId,
-            revisionNumber: number,
-            title: p.title,
-            statement: p.statement,
-            starterCodes: p.starterCodes!,
-            reviewed: false,
-            tests: {
-              create: p.tests.map((tc) => ({
-                position: tc.position,
-                input: tc.input,
-                expectedOutput: tc.expectedOutput,
-                hidden: tc.hidden,
-              })),
-            },
-          })),
-        },
-      }));
-      return tx.courseRevision.create({
-        data: {
-          courseId: course.id,
-          number,
-          topics: copiedTopics ? { create: copiedTopics } : undefined,
-        },
-      });
-    });
-    res.status(201).json({ revision });
-  },
-);
-const topicBody = z
-  .object({
-    key: z.enum(algorithmKeys as [string, ...string[]]),
-    unitLabel: z.string().trim().min(1).max(100),
-    lesson: z.string().trim().min(30).max(30000),
-    objectives: z.array(z.string().trim().min(1).max(200)).min(1).max(10),
-    prerequisiteKeys: z
-      .array(z.enum(algorithmKeys as [string, ...string[]]))
-      .max(5)
-      .default([]),
-    reviewed: z.boolean().default(false),
-    sourceSubjectId: z.uuid(),
-    sourceUnitId: z.uuid().nullable().default(null),
-    sourcePages: z.array(z.number().int().positive()).min(1).max(10),
-  })
-  .strict();
-async function validateTopicSource(
-  courseId: string,
-  b: {
-    sourceSubjectId: string;
-    sourceUnitId: string | null;
-    sourcePages: number[];
-  },
-) {
-  const link = await db.courseSubject.findUnique({
-    where: { courseId_subjectId: { courseId, subjectId: b.sourceSubjectId } },
-    include: { subject: true },
-  });
-  if (
-    !link ||
-    b.sourcePages.some(
-      (page) => page < link.subject.startPage || page > link.subject.endPage,
-    )
-  )
-    throw new ApiError(
-      422,
-      "SOURCE_INVALID",
-      "Select an assigned official subject and pages inside its supplied range.",
-    );
-  if (
-    b.sourceUnitId &&
-    !(await db.curriculumUnit.findFirst({
-      where: { id: b.sourceUnitId, subjectId: b.sourceSubjectId },
-    }))
-  )
-    throw new ApiError(
-      422,
-      "SOURCE_INVALID",
-      "The unit must belong to the selected subject.",
-    );
-}
-learningRouter.post(
-  "/faculty/revisions/:id/topics",
-  async (req: AuthRequest, res) => {
-    const r = await draftAccess(req, id(req.params.id)),
-      b = parse(topicBody, req.body);
-    await validateTopicSource(r.courseId, b);
-    const position =
-      (await db.courseTopic.count({ where: { revisionId: r.id } })) + 1;
-    const t = await db.courseTopic.create({
-      data: {
-        revisionId: r.id,
-        ...b,
-        title: algorithms[b.key as keyof typeof algorithms].title,
-        position,
-      },
-    });
-    res.status(201).json({ topic: t });
-  },
-);
-learningRouter.patch("/faculty/topics/:id", async (req: AuthRequest, res) => {
-  const t = await topicAccess(req, id(req.params.id), true, true),
-    b = parse(topicBody, req.body);
-  await validateTopicSource(t.revision.courseId, b);
-  if (b.key !== t.key)
-    throw new ApiError(
-      422,
-      "KEY_IMMUTABLE",
-      "The algorithm identity cannot change.",
-    );
-  res.json({
-    topic: await db.courseTopic.update({ where: { id: t.id }, data: b }),
-  });
-});
-learningRouter.put(
-  "/faculty/revisions/:id/topic-order",
-  async (req: AuthRequest, res) => {
-    const r = await draftAccess(req, id(req.params.id)),
-      b = parse(
-        z
-          .object({ topicIds: z.array(z.uuid()).max(algorithmKeys.length) })
-          .strict(),
-        req.body,
-      );
-    const topics = await db.courseTopic.findMany({
-      where: { revisionId: r.id },
-    });
-    if (
-      b.topicIds.length !== topics.length ||
-      new Set(b.topicIds).size !== topics.length ||
-      b.topicIds.some((x) => !topics.some((t) => t.id === x))
-    )
-      throw new ApiError(
-        422,
-        "ORDER_INVALID",
-        "Include each topic exactly once.",
-      );
-    await db.$transaction(async (tx) => {
-      for (const [i, tid] of b.topicIds.entries())
-        await tx.courseTopic.update({
-          where: { id: tid },
-          data: { position: i + 100 },
-        });
-      for (const [i, tid] of b.topicIds.entries())
-        await tx.courseTopic.update({
-          where: { id: tid },
-          data: { position: i + 1 },
-        });
-    });
-    res.json({ message: "Topic order saved." });
-  },
-);
-const questionBody = z
-  .object({
-    objective: z.string().trim().min(1).max(200),
-    difficulty: z.enum(["EASY", "MEDIUM", "HARD"]),
-    prompt: z.string().trim().min(10).max(5000),
-    options: z.array(z.string().trim().min(1).max(1000)).min(2).max(6),
-    correctOption: z.number().int().min(0).max(5),
-    explanation: z.string().trim().min(10).max(5000),
-    reviewed: z.boolean().default(false),
-  })
-  .strict()
-  .refine((b) => b.correctOption < b.options.length, {
-    message: "Correct option must exist.",
-    path: ["correctOption"],
-  });
-learningRouter.post(
-  "/faculty/topics/:id/questions",
-  async (req: AuthRequest, res) => {
-    const t = await topicAccess(req, id(req.params.id), true, true),
-      b = parse(questionBody, req.body);
-    res.status(201).json({
-      question: await db.question.create({
-        data: { topicId: t.id, revisionNumber: t.revision.number, ...b },
-      }),
-    });
-  },
-);
-learningRouter.patch(
-  "/faculty/questions/:id",
-  async (req: AuthRequest, res) => {
-    const q = await db.question.findUnique({
-      where: { id: id(req.params.id) },
-    });
-    if (!q) throw new ApiError(404, "NOT_FOUND", "Question not found.");
-    await topicAccess(req, q.topicId, true, true);
-    res.json({
-      question: await db.question.update({
-        where: { id: q.id },
-        data: parse(questionBody, req.body),
-      }),
-    });
-  },
-);
-const byteText = (max: number) =>
-  z
-    .string()
-    .refine(
-      (value) => Buffer.byteLength(value, "utf8") <= max,
-      `Maximum ${max} UTF-8 bytes.`,
-    );
-const problemBody = z
-  .object({
-    title: z.string().trim().min(3).max(150),
-    statement: z.string().trim().min(30).max(20000),
-    starterCodes: z
-      .object({
-        c: byteText(65536),
-        cpp: byteText(65536),
-        java: byteText(65536),
-        python: byteText(65536),
-      })
-      .strict(),
-    reviewed: z.boolean().default(false),
-    tests: z
-      .array(
-        z
-          .object({
-            input: byteText(16384),
-            expectedOutput: byteText(65536),
-            hidden: z.boolean(),
-          })
-          .strict(),
-      )
-      .length(8),
-  })
-  .strict()
-  .refine((b) => b.tests.filter((t) => !t.hidden).length === 3, {
-    message: "Provide exactly three sample and five hidden tests.",
-    path: ["tests"],
-  });
-learningRouter.post(
-  "/faculty/topics/:id/problems",
-  async (req: AuthRequest, res) => {
-    const t = await topicAccess(req, id(req.params.id), true, true),
-      b = parse(problemBody, req.body);
-    res.status(201).json({
-      problem: await db.problem.create({
-        data: {
-          topicId: t.id,
-          revisionNumber: t.revision.number,
-          title: b.title,
-          statement: b.statement,
-          starterCodes: b.starterCodes,
-          reviewed: b.reviewed,
-          tests: {
-            create: b.tests.map((tc, i) => ({ ...tc, position: i + 1 })),
-          },
-        },
-      }),
-    });
-  },
-);
-learningRouter.patch("/faculty/problems/:id", async (req: AuthRequest, res) => {
-  const p = await db.problem.findUnique({ where: { id: id(req.params.id) } });
-  if (!p) throw new ApiError(404, "NOT_FOUND", "Problem not found.");
-  await topicAccess(req, p.topicId, true, true);
-  const b = parse(problemBody, req.body);
-  const problem = await db.$transaction(async (tx) => {
-    await tx.testCase.deleteMany({ where: { problemId: p.id } });
-    return tx.problem.update({
-      where: { id: p.id },
-      data: {
-        title: b.title,
-        statement: b.statement,
-        starterCodes: b.starterCodes,
-        reviewed: b.reviewed,
-        tests: { create: b.tests.map((tc, i) => ({ ...tc, position: i + 1 })) },
-      },
-    });
-  });
-  res.json({ problem });
-});
-learningRouter.post(
-  "/faculty/revisions/:id/publish",
-  async (req: AuthRequest, res) => {
-    const r = await draftAccess(req, id(req.params.id));
-    const result = await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${r.courseId}))`;
-      await tx.$queryRaw`SELECT id FROM "CourseRevision" WHERE id=${r.id}::uuid FOR UPDATE`;
-      const revision = await tx.courseRevision.findUniqueOrThrow({
-        where: { id: r.id },
-        include: {
-          topics: {
-            include: {
-              questions: true,
-              problems: { include: { tests: true } },
-            },
-          },
-        },
-      });
-      const errors: string[] = [];
-      if (revision.status !== "DRAFT")
-        throw new ApiError(
-          409,
-          "IMMUTABLE",
-          "This revision is already published.",
-        );
-      if (!revision.topics.length)
-        errors.push("Add at least one learning topic.");
-      const visiting = new Set<string>(),
-        visited = new Set<string>();
-      const visit = (key: string) => {
-        if (visiting.has(key)) {
-          errors.push("Prerequisites contain a cycle.");
-          return;
-        }
-        if (visited.has(key)) return;
-        const t = revision.topics.find((t) => t.key === key);
-        if (!t) {
-          errors.push(`Missing prerequisite: ${key}.`);
-          return;
-        }
-        visiting.add(key);
-        for (const k of t.prerequisiteKeys) visit(k);
-        visiting.delete(key);
-        visited.add(key);
-      };
-      for (const t of revision.topics) {
-        visit(t.key);
-        if (!t.reviewed) errors.push(`${t.title}: review the lesson.`);
-        for (const [difficulty, count] of [
-          ["EASY", 6],
-          ["MEDIUM", 7],
-          ["HARD", 7],
-        ] as const)
-          if (
-            t.questions.filter((q) => q.reviewed && q.difficulty === difficulty)
-              .length < count
-          )
-            errors.push(
-              `${t.title}: requires ${count} reviewed ${difficulty.toLowerCase()} questions.`,
-            );
-        if (
-          t.problems.filter(
-            (p) =>
-              p.reviewed &&
-              p.tests.length === 8 &&
-              p.tests.filter((tc) => !tc.hidden).length === 3,
-          ).length < 2
-        )
-          errors.push(
-            `${t.title}: requires two reviewed problems with 3 sample/5 hidden tests.`,
-          );
-      }
-      if (errors.length)
-        throw new ApiError(422, "PUBLICATION_INVALID", errors.join(" "));
-      const updated = await tx.courseRevision.update({
-        where: { id: r.id },
-        data: { status: "PUBLISHED", publishedAt: new Date() },
-      });
-      await tx.course.update({
-        where: { id: r.courseId },
-        data: { publishedRevisionId: r.id },
-      });
-      await tx.auditEvent.create({
-        data: {
-          actorId: req.auth!.user.id,
-          action: "COURSE_PUBLISHED",
-          entityType: "CourseRevision",
-          entityId: r.id,
-          metadata: { number: r.number },
-        },
-      });
-      return updated;
-    });
-    res.json({ revision: result });
-  },
-);
 async function facultyCourseData(
   req: AuthRequest,
   courseId: string,
@@ -1000,16 +571,21 @@ learningRouter.get(
       weak: data.students.filter(
         (s) => s.topics.find((x) => x.id === t.id)?.progress.state === "WEAK",
       ).length,
-      insufficientEvidence: data.students.filter(
-        (s) => s.topics.find((x) => x.id === t.id)?.progress.score === null,
-      ).length,
+      insufficientEvidence: data.students.filter((s) => {
+        const p = s.topics.find((x) => x.id === t.id)?.progress;
+        return p?.score === null && p.state !== "NOT_APPLICABLE";
+      }).length,
+      requiredActivities: t.requiredActivities,
+      blockedActivities: blocks(t.blockedActivities),
     }));
     const attention = data.students
       .map((s) => ({
         user: s.user,
         weakTopics: s.topics.filter((t) => t.progress.state === "WEAK").length,
-        insufficientTopics: s.topics.filter((t) => t.progress.score === null)
-          .length,
+        insufficientTopics: s.topics.filter(
+          (t) =>
+            t.progress.score === null && t.progress.state !== "NOT_APPLICABLE",
+        ).length,
       }))
       .filter((s) => s.weakTopics > 0)
       .sort(
@@ -1017,7 +593,21 @@ learningRouter.get(
           b.weakTopics - a.weakTopics || a.user.name.localeCompare(b.user.name),
       )
       .slice(0, 10);
-    res.json({ enrolledStudents: data.total, topicSummaries, attention });
+    const providerFailures = await db.submission.count({
+      where: {
+        courseId: data.course.id,
+        status: "EXECUTION_FAILED",
+        ...(data.course.publishedRevisionId
+          ? { courseRevisionId: data.course.publishedRevisionId }
+          : {}),
+      },
+    });
+    res.json({
+      enrolledStudents: data.total,
+      topicSummaries,
+      attention,
+      providerFailures,
+    });
   },
 );
 learningRouter.get(

@@ -118,11 +118,23 @@ test("faculty can inspect actual students and create immutable-content revision 
     page.getByText("0 reviewed questions · 0 reviewed problems"),
   ).toBeVisible();
   await page.getByRole("link", { name: "My courses", exact: true }).click();
-  await page.getByRole("link", { name: "View students", exact: true }).click();
+  await page
+    .locator(".course-grid > div")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Browser test course",
+        exact: true,
+      }),
+    })
+    .getByRole("link", { name: "View students", exact: true })
+    .click();
   await expect(
     page.getByText("Browser Student", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "View student detail" }).click();
+  await page
+    .locator(".card", { hasText: "Browser Student" })
+    .getByRole("link", { name: "View student detail" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Browser Student" }),
   ).toBeVisible();

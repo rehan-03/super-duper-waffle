@@ -219,10 +219,13 @@ export function CoursesPage() {
 export function CoursePage() {
   const { courseId } = useParams();
   const { user } = useAuth();
+  const [page, setPage] = useState(1);
   const q = useData<{ course: Course; subjects: Subject[] }>(
       `/courses/${courseId}/curriculum`,
     ),
-    t = useData<{ topics: Topic[] }>(`/courses/${courseId}/topics`);
+    t = useData<{ topics: Topic[]; total: number }>(
+      `/courses/${courseId}/topics?page=${page}`,
+    );
   if (q.loading) return <Loading />;
   if (q.error) return <ErrorState error={q.error} retry={q.refresh} />;
   return (
@@ -241,6 +244,25 @@ export function CoursePage() {
         </div>
       )}
       <h2>Learning activities</h2>
+      {t.data && t.data.total > 100 && (
+        <div className="row">
+          <Button
+            kind="secondary"
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Previous topics
+          </Button>
+          <p>Page {page}</p>
+          <Button
+            kind="secondary"
+            disabled={page * 100 >= t.data.total}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next topics
+          </Button>
+        </div>
+      )}
       {t.loading ? (
         <Loading />
       ) : t.error ? (
@@ -674,12 +696,14 @@ function FacultyOverview() {
 function FacultySummary({ courseId }: { courseId: string }) {
   const q = useData<{
     enrolledStudents: number;
+    providerFailures: number;
     topicSummaries: {
       topicId: string;
       title: string;
       completed: number;
       weak: number;
       insufficientEvidence: number;
+      blockedActivities: { activity: string; reason: string }[];
     }[];
     attention: { user: User; weakTopics: number }[];
   }>(`/faculty/courses/${courseId}/analytics`);
@@ -690,10 +714,14 @@ function FacultySummary({ courseId }: { courseId: string }) {
   return (
     <div>
       <p>{q.data!.enrolledStudents} enrolled students</p>
+      <p>{q.data!.providerFailures} execution provider failures</p>
       {q.data!.topicSummaries.map((t) => (
         <p key={t.topicId}>
           <strong>{t.title}</strong>: {t.completed} complete · {t.weak} weak ·{" "}
-          {t.insufficientEvidence} awaiting evidence
+          {t.insufficientEvidence} awaiting quiz evidence
+          {t.blockedActivities.length
+            ? ` · ${t.blockedActivities.length} blocked required activities`
+            : ""}
         </p>
       ))}
       {q.data!.attention.length > 0 && (

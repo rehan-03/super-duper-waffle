@@ -1216,6 +1216,60 @@ footer {
   font-size: 14px;
   margin-top: -10px;
 }
+.demo-credentials {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  background: #eef2ff;
+}
+.demo-credentials > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.demo-credentials > div:first-child span,
+.demo-credentials small {
+  color: #526078;
+  font-size: 11px;
+}
+.demo-credentials p {
+  margin: 0;
+  font-size: 12px;
+}
+.demo-account-list {
+  display: grid;
+  gap: 6px;
+}
+.demo-account-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #a5b4fc;
+  border-radius: 8px;
+  background: white;
+  color: #312e81;
+  cursor: pointer;
+  text-align: left;
+}
+.demo-account-list button:hover {
+  border-color: #4f46e5;
+  background: #f8fafc;
+}
+.demo-account-list button:focus-visible {
+  outline: 3px solid #818cf8;
+  outline-offset: 2px;
+}
+.demo-account-list button span {
+  overflow-wrap: anywhere;
+  color: #475569;
+  font-size: 11px;
+}
 .auth-mark {
   width: 44px;
   height: 44px;

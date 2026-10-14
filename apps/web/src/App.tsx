@@ -52,6 +52,7 @@ import {
 } from "./learning-pages";
 import { ContentPage, StudentsPage, StudentDetailPage } from "./faculty-pages";
 import type { Role } from "./types";
+import CoveragePage from "./CoveragePage";
 const CodingPage = lazy(() => import("./CodingPage"));
 function Guard({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { user } = useAuth();
@@ -131,6 +132,7 @@ function Shell() {
             label: "Curriculum references",
             Icon: GraduationCap,
           },
+          { to: "/coverage", label: "Syllabus coverage", Icon: FileClock },
         ]),
     ...(user.role === "ADMIN"
       ? [
@@ -270,6 +272,14 @@ export function App() {
         <Route index element={<DashboardPage />} />
         <Route path="courses" element={<CoursesPage />} />
         <Route path="courses/:courseId" element={<CoursePage />} />
+        <Route
+          path="coverage"
+          element={
+            <Guard roles={["FACULTY", "ADMIN"]}>
+              <CoveragePage />
+            </Guard>
+          }
+        />
         <Route
           path="courses/:courseId/subjects/:subjectId"
           element={<SubjectPage />}

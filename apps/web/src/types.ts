@@ -14,6 +14,8 @@ export type Progress = {
   lessonAcknowledged: boolean;
   quizSubmitted: boolean;
   codingAccepted: boolean;
+  requiredActivities: string[];
+  blockedActivities: { activity: string; reason: string }[];
 };
 export type Topic = {
   id: string;
@@ -25,6 +27,15 @@ export type Topic = {
   objectives: string[];
   prerequisiteKeys: string[];
   reviewed: boolean;
+  reviewerId: string | null;
+  reviewedAt: string | null;
+  version: number;
+  visualizerKey: string | null;
+  requiredActivities: string[];
+  blockedActivities: { activity: string; reason: string }[];
+  sourceTopicIds: string[];
+  authoringStatus: string;
+  coverageKeys: string[];
   sourceSubjectId: string;
   sourceUnitId: string | null;
   sourcePages: number[];
@@ -141,6 +152,9 @@ export type Submission = {
   }[];
 };
 export type Question = {
+  version: number;
+  reviewerId: string | null;
+  reviewedAt: string | null;
   id: string;
   objective: string;
   difficulty: string;
@@ -151,10 +165,14 @@ export type Question = {
   reviewed: boolean;
 };
 export type AuthorProblem = Problem & {
+  version: number;
+  reviewerId: string | null;
+  reviewedAt: string | null;
   reviewed: boolean;
   tests: { input: string; expectedOutput: string; hidden: boolean }[];
 };
 export type Revision = {
+  _count: { topics: number };
   id: string;
   number: number;
   status: string;

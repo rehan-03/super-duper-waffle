@@ -167,7 +167,7 @@ Skip link targets main content. Use landmarks, one h1, meaningful headings, nati
 
 Lazy-load Monaco and visualizer pages. Animate opacity/transforms rather than repeated DOM layout. At most 50 array elements; scope simulation state and cancel timers when leaving. Dashboard refresh must not replay card entrances or animate invented score changes. No heavy images or backdrop filters. Validate on a modest laptop and mobile device; field response/saving and API requirements take precedence over cosmetic transitions.
 
-Design handoff frames: login/activation/recovery; each role overview; course curriculum open/closed unit; topic Learn; all six visualizer states; quiz/resume/unsaved/submit/results; workspace custom/sample/hidden result/conflict; faculty editor/readiness/student detail; admin invite/course/membership/source issue/audit; forbidden/offline/empty. For each page family provide 1440px desktop, 768px tablet and 375px mobile layouts, component variants and focus order.
+Design handoff frames: login/activation/recovery; each role overview; course curriculum open/closed unit; topic Learn; all thirteen visualizer states; quiz/resume/unsaved/submit/results; workspace custom/sample/hidden result/conflict; faculty editor/readiness/student detail; admin invite/course/membership/source issue/audit; forbidden/offline/empty. For each page family provide 1440px desktop, 768px tablet and 375px mobile layouts, component variants and focus order.
 
 Acceptance: every live navigation item resolves; core journeys work by keyboard; no page-level horizontal overflow at 375px; no fake data; reduced motion removes spatial movement; saved status reflects server acknowledgments; completion and mastery remain separate; PDF source conflicts remain visible. Test at least ten representative students against the PRD's 90% unaided learning-loop target once all activity milestones are complete.
 
@@ -210,3 +210,11 @@ flowchart LR
 ```
 
 The client does not grade quizzes, issue permissions or contact Judge0. Visibility rules complement server authorization. Animation is presentation only and cannot change learning state.
+
+## Syllabus-wide activity and review interfaces
+
+Topic tabs are derived from declared available activities and the optional registered simulation. Theory-only topics show the lesson; a SQL/hardware/external practical displays its required activity and blocked reason. Coding topics show provider availability separately from assessment outcomes. Completion lists only declared requirements; a missing practical evidence workflow cannot show complete. Quiz mastery can be not applicable.
+
+Faculty topic forms use independent stable keys, editable titles, optional visualizers, source-topic/page mappings, activity requirements, authoring status and blocked practical reasons. Source coverage lists official groups separately from the actual mapped draft status. The content studio has paginated sequences, movement across pages, original draft previews/import and publication validation. Review applies to the saved version; saving material changes clears it. Complete drafts remain unpublished until staff explicitly review and publish them.
+
+Coverage is restricted to assigned faculty subjects or administrator access. The original library includes complete supplemental modules and clearly labeled incomplete study drafts; counts never imply full syllabus completion. New coverage controls and activity tabs receive keyboard and automated accessibility checks.

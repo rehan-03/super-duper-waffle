@@ -1,4 +1,82 @@
 export const algorithms = {
+  "quick-sort": {
+    title: "Quick sort",
+    complexity:
+      "Average O(n log n), worst O(n²); recursion space O(n) worst case",
+    pseudocode: [
+      "choose the last value as pivot",
+      "compare each value with pivot",
+      "move values <= pivot to the left",
+      "place pivot between partitions",
+      "recursively sort both partitions",
+    ],
+    visualization: "array",
+    syllabus: {
+      subjectCode: "2301212",
+      subjectTitle: "Data Structures",
+      unit: "Unit I",
+      pages: [42],
+      source: "sy-2023.pdf",
+    },
+  },
+  "shell-sort": {
+    title: "Shell sort",
+    complexity: "Halving gaps: worst O(n²), extra space O(1)",
+    pseudocode: [
+      "start with gap floor(n / 2)",
+      "insert each value into its gap-separated prefix",
+      "shift larger preceding values by gap",
+      "place the saved value",
+      "halve the gap until zero",
+    ],
+    visualization: "array",
+    syllabus: {
+      subjectCode: "2301212",
+      subjectTitle: "Data Structures",
+      unit: "Unit I",
+      pages: [42],
+      source: "sy-2023.pdf",
+    },
+  },
+  "radix-sort": {
+    title: "Radix sort",
+    complexity:
+      "O(d(n + 10)) time, O(n + 10) space; offset signed keys for decimal LSD passes",
+    pseudocode: [
+      "offset every key by the minimum to obtain nonnegative keys",
+      "count the current decimal digit",
+      "compute bucket starting positions",
+      "place values stably into auxiliary storage",
+      "copy back and advance to the next digit",
+    ],
+    visualization: "array",
+    syllabus: {
+      subjectCode: "2301212",
+      subjectTitle: "Data Structures",
+      unit: "Unit I",
+      pages: [42],
+      source: "sy-2023.pdf",
+    },
+  },
+  "heap-sort": {
+    title: "Heap sort",
+    complexity: "O(n log n) time, O(1) extra array storage",
+    pseudocode: [
+      "build a max heap bottom up",
+      "compare parent with its children",
+      "swap with the larger child and sift down",
+      "swap maximum with last unsorted value",
+      "restore the heap in the remaining prefix",
+    ],
+    visualization: "array",
+    syllabus: {
+      subjectCode: "2301301",
+      subjectTitle: "Data Structures and Algorithms",
+      unit: "Unit III",
+      pages: [3],
+      source: "1781009701_ty-2023-pattern-computer-engineering-merged (1).pdf",
+    },
+  },
   "linear-search": {
     title: "Linear search",
     complexity: "Time O(n), extra space O(1)",
@@ -782,6 +860,116 @@ export function buildTrace(
         [],
         Array.from({ length: i + 1 }, (_, n) => n),
       );
+    }
+  } else if (key === "quick-sort") {
+    const sort = (lo: number, hi: number) => {
+      if (lo >= hi) return;
+      const pivot = a[hi]!;
+      step(`Choose pivot ${pivot} at index ${hi}.`, 0, [hi]);
+      let boundary = lo;
+      for (let j = lo; j < hi; j++) {
+        step(`Compare ${a[j]} with pivot ${pivot}.`, 1, [j, hi]);
+        if (a[j]! <= pivot) {
+          [a[boundary], a[j]] = [a[j]!, a[boundary]!];
+          step(`Extend the <= pivot partition through ${boundary}.`, 2, [
+            boundary,
+            j,
+          ]);
+          boundary++;
+        }
+      }
+      [a[boundary], a[hi]] = [a[hi]!, a[boundary]!];
+      step(`Pivot ${pivot} is in final position ${boundary}.`, 3, [boundary]);
+      sort(lo, boundary - 1);
+      sort(boundary + 1, hi);
+    };
+    sort(0, a.length - 1);
+  } else if (key === "shell-sort") {
+    for (
+      let gap = Math.floor(a.length / 2);
+      gap > 0;
+      gap = Math.floor(gap / 2)
+    ) {
+      step(`Use gap ${gap}.`, 0);
+      for (let i = gap; i < a.length; i++) {
+        const value = a[i]!;
+        let j = i;
+        step(`Insert ${value} into its gap-${gap} prefix.`, 1, [i]);
+        while (j >= gap && a[j - gap]! > value) {
+          a[j] = a[j - gap]!;
+          step(
+            `Shift ${a[j]} from ${j - gap} to ${j}.`,
+            2,
+            [j - gap, j],
+            [],
+            [value],
+          );
+          j -= gap;
+        }
+        a[j] = value;
+        step(`Place ${value} at ${j}.`, 3, [j]);
+      }
+      step(`Gap ${gap} pass complete. Halve the gap.`, 4);
+    }
+  } else if (key === "radix-sort") {
+    const minimum = Math.min(...a),
+      maximum = Math.max(...a) - minimum;
+    step(
+      `Use key = value - (${minimum}) so negative inputs preserve order.`,
+      0,
+    );
+    for (let place = 1; place <= maximum; place *= 10) {
+      const counts = Array<number>(10).fill(0),
+        output = Array<number>(a.length).fill(0);
+      const digit = (v: number) => Math.floor((v - minimum) / place) % 10;
+      for (let i = 0; i < a.length; i++) {
+        counts[digit(a[i]!)]!++;
+        step(
+          `Count digit ${digit(a[i]!)} of offset key ${a[i]! - minimum} at place ${place}.`,
+          1,
+          [i],
+          [],
+          counts,
+        );
+      }
+      for (let i = 1; i < 10; i++) counts[i]! += counts[i - 1]!;
+      step("Cumulative counts give exclusive bucket ends.", 2, [], [], counts);
+      for (let i = a.length - 1; i >= 0; i--) {
+        const bucket = digit(a[i]!);
+        output[--counts[bucket]!] = a[i]!;
+        step(`Place ${a[i]} stably in bucket ${bucket}.`, 3, [i], [], output);
+      }
+      a.splice(0, a.length, ...output);
+      step(`Completed digit place ${place}.`, 4, [], [], output);
+    }
+  } else if (key === "heap-sort") {
+    const sift = (root: number, end: number) => {
+      while (root * 2 + 1 < end) {
+        let child = root * 2 + 1;
+        if (child + 1 < end && a[child + 1]! > a[child]!) child++;
+        step(`Compare parent ${root} with larger child ${child}.`, 1, [
+          root,
+          child,
+        ]);
+        if (a[root]! >= a[child]!) return;
+        [a[root], a[child]] = [a[child]!, a[root]!];
+        step("Restore the max-heap ordering.", 2, [root, child]);
+        root = child;
+      }
+    };
+    for (let root = Math.floor(a.length / 2) - 1; root >= 0; root--)
+      sift(root, a.length);
+    step("Max heap built. The root is the maximum.", 0);
+    for (let end = a.length - 1; end > 0; end--) {
+      [a[0], a[end]] = [a[end]!, a[0]!];
+      step(
+        `Maximum placed at ${end}.`,
+        3,
+        [0, end],
+        a.map((_, i) => i).slice(end),
+      );
+      sift(0, end);
+      step(`Remaining prefix of length ${end} is a max heap.`, 4);
     }
   } else {
     const merge = (lo: number, hi: number) => {

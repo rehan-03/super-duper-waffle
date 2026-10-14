@@ -256,6 +256,16 @@ model CourseTopic {
   objectives String[]
   prerequisiteKeys String[]
   reviewed Boolean @default(false)
+  reviewerId String? @db.Uuid
+  reviewedAt DateTime?
+  version Int @default(0)
+  visualizerKey String?
+  requiredActivities String[] @default(["LESSON", "QUIZ", "CODING"])
+  completionRule String @default("ACTIVITIES_V1")
+  blockedActivities Json @default("[]")
+  sourceTopicIds String[] @default([])
+  authoringStatus String @default("COMPLETE_DRAFT")
+  coverageKeys String[] @default([])
   sourceSubjectId String @db.Uuid
   sourceSubject Subject @relation(fields:[sourceSubjectId],references:[id])
   sourceUnitId String? @db.Uuid
@@ -281,6 +291,9 @@ model Question {
   correctOption Int
   explanation String
   reviewed Boolean @default(false)
+  reviewerId String? @db.Uuid
+  reviewedAt DateTime?
+  version Int @default(0)
   quizItems QuizItem[]
   @@unique([familyId,revisionNumber])
   @@index([topicId,difficulty])
@@ -295,6 +308,9 @@ model Problem {
   statement String
   starterCodes Json
   reviewed Boolean @default(false)
+  reviewerId String? @db.Uuid
+  reviewedAt DateTime?
+  version Int @default(0)
   tests TestCase[]
   drafts CodeDraft[]
   submissions Submission[]

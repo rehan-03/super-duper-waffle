@@ -1,15 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  algorithms,
   buildTrace,
   mastery,
   quizMix,
   normalizeOutput,
   type AlgorithmKey,
 } from "@algolearn/shared";
-test("all six visualizers are deterministic and preserve boundary results", () => {
-  for (const key of Object.keys(algorithms) as AlgorithmKey[]) {
+test("array search and sort visualizers are deterministic and preserve boundary results", () => {
+  const arrayAlgorithmKeys = [
+    "linear-search",
+    "binary-search",
+    "bubble-sort",
+    "selection-sort",
+    "insertion-sort",
+    "merge-sort",
+  ] satisfies AlgorithmKey[];
+  for (const key of arrayAlgorithmKeys) {
     for (const values of [
       [0],
       [-999, 999, 0, 0, -1],

@@ -48,3 +48,9 @@ PRD retention defaults: learning records 12 months after course end, raw code/ou
 ## Live executor gate
 
 Record deployed version/patch level, language inventory and enforced CPU/memory/process/file/network settings. Test all four compilers, correct/incorrect solutions, compiler errors, loops, processes, memory/output exhaustion, network/metadata and unauthorized files. Test worker termination during creation/polling, expired leases, overload and host outages. Jobs must settle within 90 seconds, without duplicate uncertain execution. Inspect actual responses/logs for hidden-test secrecy.
+
+## Additive syllabus upgrade
+
+Capture an encrypted institutional backup before deploying the additive topic/review migrations. The local migration compatibility suite reconstructs the old schema with populated published records and verifies retained memberships, acknowledgments, attempts, drafts and submissions after upgrading. Review metadata is never backfilled with invented actors. Historical topic keys and completion rules are retained.
+
+The runtime image must include `apps/api/data/coverage.json` as well as the official curriculum catalog; compiled draft modules read it at startup. Local `db:seed:drafts` is forbidden in production. In institutional deployment, assigned faculty import selected source-aligned drafts into an existing revision, review them, resolve authoring/source gaps and explicitly publish. Missing SMTP, live executor isolation and institutional review remain deployment gates.

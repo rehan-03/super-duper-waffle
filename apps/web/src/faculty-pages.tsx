@@ -24,10 +24,221 @@ import type {
   Question,
   AuthorProblem,
 } from "./types";
+function ReviewButton({
+  kind,
+  item,
+  refresh,
+}: {
+  kind: string;
+  item: {
+    id: string;
+    version: number;
+    reviewed: boolean;
+    reviewerId: string | null;
+    reviewedAt: string | null;
+  };
+  refresh: () => void;
+}) {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  async function review() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/faculty/${kind}/${item.id}/review`, {
+        version: item.version,
+        approved: !item.reviewed,
+      });
+      refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div>
+      <p>
+        {item.reviewed
+          ? `Reviewed ${item.reviewedAt ? new Date(item.reviewedAt).toLocaleString() : "(historical metadata unavailable)"} by ${item.reviewerId ?? "historical reviewer"}`
+          : `Unreviewed saved version ${item.version}`}
+      </p>
+      {error && <Alert>{error}</Alert>}
+      <Button type="button" kind="secondary" disabled={busy} onClick={review}>
+        {item.reviewed ? "Revoke review" : "Approve saved content"}
+      </Button>
+      <p className="muted">
+        Review applies to the saved version. Save any form changes first.
+      </p>
+    </div>
+  );
+}
+function ValidationPanel({ revisionId }: { revisionId: string }) {
+  const [result, setResult] = useState<{
+      valid: boolean;
+      errors: string[];
+    } | null>(null),
+    [error, setError] = useState("");
+  async function validate() {
+    try {
+      setResult(await api(`/faculty/revisions/${revisionId}/validation`));
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  return (
+    <Card>
+      <h2>Publication readiness</h2>
+      <Button kind="secondary" onClick={validate}>
+        Validate draft without publishing
+      </Button>
+      {error && <Alert>{error}</Alert>}
+      {result && (
+        <>
+          <p role="status">
+            {result.valid
+              ? "Validation passed. Faculty publication is still required."
+              : `${result.errors.length} issues require attention.`}
+          </p>
+          <ul>
+            {result.errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+function DraftLibrary({
+  courseId,
+  revisionId,
+  refresh,
+}: {
+  courseId: string;
+  revisionId: string;
+  refresh: () => void;
+}) {
+  const [page, setPage] = useState(1),
+    [selected, setSelected] = useState<string[]>([]),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [message, setMessage] = useState("");
+  const q = useData<{
+    total: number;
+    drafts: {
+      key: string;
+      title: string;
+      lesson: string;
+      authoringStatus: string;
+      requiredActivities: string[];
+      questions: unknown[];
+      problems: unknown[];
+    }[];
+  }>(`/faculty/courses/${courseId}/draft-library?page=${page}`);
+  async function importSelected() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{
+        message: string;
+        imported: number;
+        skipped: number;
+      }>(`/faculty/revisions/${revisionId}/import-drafts`, { keys: selected });
+      setMessage(
+        `${result.imported} imported, ${result.skipped} already present. ${result.message}`,
+      );
+      setSelected([]);
+      refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card>
+      <details>
+        <summary>Original draft library for assigned subjects</summary>
+        <p>
+          Imported material is unreviewed. Incomplete source groups remain
+          blocked from publication until topic-specific authoring and
+          assessments are finished.
+        </p>
+        {error && <Alert>{error}</Alert>}
+        {message && <p role="status">{message}</p>}
+        {q.loading ? (
+          <Loading />
+        ) : q.error ? (
+          <ErrorState error={q.error} retry={q.refresh} />
+        ) : (
+          <>
+            <p>
+              {q.data!.total} drafts · Page {page}
+            </p>
+            <div className="row">
+              <Button
+                kind="secondary"
+                disabled={page === 1}
+                onClick={() => {
+                  setPage((p) => p - 1);
+                  setSelected([]);
+                }}
+              >
+                Previous drafts
+              </Button>
+              <Button
+                kind="secondary"
+                disabled={page * 50 >= q.data!.total}
+                onClick={() => {
+                  setPage((p) => p + 1);
+                  setSelected([]);
+                }}
+              >
+                Next drafts
+              </Button>
+            </div>
+            {q.data!.drafts.map((d) => (
+              <div key={d.key}>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(d.key)}
+                    onChange={(e) =>
+                      setSelected((s) =>
+                        e.target.checked
+                          ? [...s, d.key]
+                          : s.filter((k) => k !== d.key),
+                      )
+                    }
+                  />
+                  {d.title} · {readable(d.authoringStatus)} ·{" "}
+                  {d.questions.length} questions / {d.problems.length} problems
+                </label>
+                <details>
+                  <summary>Preview {d.title}</summary>
+                  <p className="lesson-text">{d.lesson}</p>
+                </details>
+              </div>
+            ))}
+            <Button
+              disabled={busy || !selected.length}
+              onClick={importSelected}
+            >
+              Import selected drafts
+            </Button>
+          </>
+        )}
+      </details>
+    </Card>
+  );
+}
 export function ContentPage() {
   const { courseId } = useParams(),
+    [page, setPage] = useState(1),
     q = useData<{ revisions: Revision[] }>(
-      `/faculty/courses/${courseId}/revisions`,
+      `/faculty/courses/${courseId}/revisions?page=${page}`,
     ),
     curriculum = useData<{ course: Course; subjects: Subject[] }>(
       `/courses/${courseId}/curriculum`,
@@ -78,17 +289,10 @@ export function ContentPage() {
   }
   async function reorder(tid: string, direction: number) {
     if (!draft) return;
-    const ids = draft.topics.map((t) => t.id),
-      i = ids.indexOf(tid),
-      j = i + direction;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
     try {
-      await api(
-        `/faculty/revisions/${draft.id}/topic-order`,
-        { topicIds: ids },
-        "PUT",
-      );
+      await api(`/faculty/topics/${tid}/move`, {
+        direction: direction < 0 ? "UP" : "DOWN",
+      });
       q.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -132,10 +336,31 @@ export function ContentPage() {
           <div className="row">
             <Badge>Draft revision {draft.number}</Badge>
             <p>
-              {draft.topics.length} of {algorithmKeys.length} supported
-              visualizer topics
+              {draft._count.topics} learning topics · Page {page}
             </p>
           </div>
+          <div className="row">
+            <Button
+              kind="secondary"
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous topics
+            </Button>
+            <Button
+              kind="secondary"
+              disabled={page * 100 >= draft._count.topics}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next topics
+            </Button>
+          </div>
+          <ValidationPanel revisionId={draft.id} />
+          <DraftLibrary
+            courseId={courseId!}
+            revisionId={draft.id}
+            refresh={q.refresh}
+          />
           <div className="author-grid">
             <Card>
               <h2>Topic sequence</h2>
@@ -155,14 +380,14 @@ export function ContentPage() {
                   <div className="row">
                     <Button
                       kind="secondary"
-                      disabled={i === 0}
+                      disabled={page === 1 && i === 0}
                       onClick={() => reorder(t.id, -1)}
                     >
                       Move up
                     </Button>
                     <Button
                       kind="secondary"
-                      disabled={i === draft.topics.length - 1}
+                      disabled={(page - 1) * 100 + i + 1 >= draft._count.topics}
                       onClick={() => reorder(t.id, 1)}
                     >
                       Move down
@@ -178,6 +403,7 @@ export function ContentPage() {
                   topic={topic}
                   refresh={q.refresh}
                   subjects={curriculum.data?.subjects ?? []}
+                  existingKeys={draft.topics.map((t) => t.key)}
                 />
               )}
               <Card>
@@ -198,7 +424,8 @@ export function ContentPage() {
             <p>
               Create a draft, map objectives to your curriculum and add reviewed
               assessment content. Publication requires 6 easy, 7 medium, 7 hard
-              questions and two complete problems per topic.
+              questions when quizzes are required, and two complete problems
+              when coding is required.
             </p>
           </Empty>
         </Card>
@@ -249,6 +476,23 @@ function TopicForm({
           .filter(Boolean)
           .map(Number),
         key: f.get("key"),
+        title: f.get("title"),
+        version: topic?.version,
+        visualizerKey: f.get("visualizerKey") || null,
+        requiredActivities: ["LESSON", ...f.getAll("activities")],
+        blockedActivities: String(f.get("practicalReason") ?? "").trim()
+          ? [
+              {
+                activity: "PRACTICAL",
+                reason: String(f.get("practicalReason")).trim(),
+              },
+            ]
+          : [],
+        sourceTopicIds: String(f.get("sourceTopicIds") ?? "")
+          .split(/[\s,]+/)
+          .filter(Boolean),
+        authoringStatus: f.get("authoringStatus"),
+        coverageKeys: topic?.coverageKeys ?? [],
         unitLabel: f.get("unitLabel"),
         lesson: f.get("lesson"),
         objectives: String(f.get("objectives"))
@@ -275,17 +519,83 @@ function TopicForm({
   return (
     <form onSubmit={submit} className="narrow-form">
       {error && <Alert>{error}</Alert>}
-      <Field label="Algorithm">
-        <select name="key" defaultValue={topic?.key ?? ""} required>
-          {!topic && <option value="">Select one</option>}
-          {algorithmKeys
-            .filter((k) => !existingKeys.includes(k))
-            .map((k) => (
-              <option key={k} value={k}>
-                {algorithms[k].title}
-              </option>
-            ))}
+      <Field
+        label="Learning topic key"
+        hint="Stable lowercase letters, digits and hyphens; independent from a simulation."
+      >
+        <input
+          name="key"
+          defaultValue={topic?.key ?? ""}
+          readOnly={!!topic}
+          required
+          pattern="[a-z0-9][a-z0-9-]{0,119}"
+        />
+      </Field>
+      <Field label="Topic title">
+        <input
+          name="title"
+          defaultValue={topic?.title ?? ""}
+          required
+          minLength={3}
+          maxLength={200}
+        />
+      </Field>
+      <Field label="Authoring coverage">
+        <select
+          name="authoringStatus"
+          defaultValue={topic?.authoringStatus ?? "COMPLETE_DRAFT"}
+        >
+          <option value="INCOMPLETE">Incomplete authoring</option>
+          <option value="SOURCE_BLOCKED">Missing or ambiguous source</option>
+          <option value="COMPLETE_DRAFT">
+            Complete draft, ready for human review
+          </option>
         </select>
+      </Field>
+      <Field label="Optional visualization">
+        <select name="visualizerKey" defaultValue={topic?.visualizerKey ?? ""}>
+          <option value="">No supported simulation</option>
+          {algorithmKeys.map((k) => (
+            <option key={k} value={k}>
+              {algorithms[k].title}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <fieldset>
+        <legend>Required activities (lesson is always required)</legend>
+        {["QUIZ", "CODING", "PRACTICAL"].map((a) => (
+          <label className="check" key={a}>
+            <input
+              type="checkbox"
+              name="activities"
+              value={a}
+              defaultChecked={topic?.requiredActivities.includes(a) ?? false}
+            />
+            {readable(a)}
+          </label>
+        ))}
+      </fieldset>
+      <Field
+        label="External practical blocked reason"
+        hint="Required for hardware, SQL, GPU, networking or external-tool activities. These cannot earn coding completion."
+      >
+        <textarea
+          name="practicalReason"
+          defaultValue={
+            topic?.blockedActivities.find((b) => b.activity === "PRACTICAL")
+              ?.reason ?? ""
+          }
+        />
+      </Field>
+      <Field
+        label="Source topic IDs"
+        hint="Optional comma-separated source paragraph IDs from the selected official unit."
+      >
+        <input
+          name="sourceTopicIds"
+          defaultValue={topic?.sourceTopicIds.join(", ") ?? ""}
+        />
       </Field>
       <Field label="Official subject">
         <select
@@ -377,11 +687,11 @@ function TopicForm({
           defaultValue={topic?.prerequisiteKeys ?? []}
           size={3}
         >
-          {algorithmKeys
+          {[...new Set([...existingKeys, ...(topic?.prerequisiteKeys ?? [])])]
             .filter((k) => k !== topic?.key)
             .map((k) => (
               <option key={k} value={k}>
-                {algorithms[k].title}
+                {k}
               </option>
             ))}
         </select>
@@ -394,6 +704,10 @@ function TopicForm({
         />
         I have reviewed this lesson for accuracy and curriculum relevance.
       </label>
+      <p className="muted">
+        Changes clear approval. Save, preview, then record review of the saved
+        version.
+      </p>
       <Button disabled={busy}>Save lesson draft</Button>
     </form>
   );
@@ -402,7 +716,9 @@ function TopicEditor({
   topic,
   refresh,
   subjects,
+  existingKeys,
 }: {
+  existingKeys: string[];
   topic: Revision["topics"][number];
   refresh: () => void;
   subjects: Subject[];
@@ -416,6 +732,7 @@ function TopicEditor({
         <h2>{topic.title}</h2>
         <Link to={`/topics/${topic.id}`}>Preview topic</Link>
       </div>
+      <ReviewButton kind="topics" item={topic} refresh={refresh} />
       <div className="tabs">
         {["lesson", "questions", "problems"].map((t) => (
           <button key={t} aria-pressed={tab === t} onClick={() => setTab(t)}>
@@ -424,7 +741,13 @@ function TopicEditor({
         ))}
       </div>
       {tab === "lesson" ? (
-        <TopicForm topic={topic} onSaved={refresh} subjects={subjects} />
+        <TopicForm
+          key={`${topic.id}-${topic.version}`}
+          topic={topic}
+          existingKeys={existingKeys}
+          onSaved={refresh}
+          subjects={subjects}
+        />
       ) : tab === "questions" ? (
         <>
           <p>
@@ -511,6 +834,7 @@ function QuestionForm({
     setBusy(true);
     try {
       const b = {
+        version: question?.version,
         objective: f.get("objective"),
         difficulty: f.get("difficulty"),
         prompt: f.get("prompt"),
@@ -539,6 +863,9 @@ function QuestionForm({
   }
   return (
     <form onSubmit={submit} className="narrow-form">
+      {question && (
+        <ReviewButton kind="questions" item={question} refresh={onSaved} />
+      )}
       {error && <Alert>{error}</Alert>}
       <Field label="Objective">
         <input
@@ -622,6 +949,7 @@ function ProblemForm({
     setBusy(true);
     try {
       const b = {
+        version: problem?.version,
         title: f.get("title"),
         statement: f.get("statement"),
         starterCodes: Object.fromEntries(
@@ -653,6 +981,9 @@ function ProblemForm({
   }
   return (
     <form onSubmit={submit} className="narrow-form">
+      {problem && (
+        <ReviewButton kind="problems" item={problem} refresh={onSaved} />
+      )}
       {error && <Alert>{error}</Alert>}
       <Field label="Problem title">
         <input
@@ -759,7 +1090,13 @@ export function StudentsPage() {
                 <p>
                   {s.topics.filter((t) => t.progress.state === "WEAK").length}{" "}
                   weak topics ·{" "}
-                  {s.topics.filter((t) => t.progress.score === null).length}{" "}
+                  {
+                    s.topics.filter(
+                      (t) =>
+                        t.progress.score === null &&
+                        t.progress.state !== "NOT_APPLICABLE",
+                    ).length
+                  }{" "}
                   topics with insufficient evidence
                 </p>
                 <Link to={`/faculty/courses/${courseId}/students/${s.user.id}`}>
@@ -828,9 +1165,11 @@ export function StudentDetailPage() {
               <h3>{t.title}</h3>
               <Badge>{readable(t.progress.state)}</Badge>
               <p>
-                {t.progress.score === null
-                  ? "Not enough quiz evidence"
-                  : `${t.progress.score}% mastery estimate`}{" "}
+                {t.progress.state === "NOT_APPLICABLE"
+                  ? "Quiz mastery not applicable"
+                  : t.progress.score === null
+                    ? "Not enough quiz evidence"
+                    : `${t.progress.score}% mastery estimate`}{" "}
                 · {t.progress.evidenceCount} distinct answered families
               </p>
               <p>

@@ -210,6 +210,10 @@ test.before(async () => {
     },
   });
   problemId = problem.id;
+  await db.problem.update({
+    where: { id: problem.id },
+    data: { reviewed: true },
+  });
   await db.courseRevision.update({
     where: { id: revisionId },
     data: { status: "PUBLISHED", publishedAt: new Date() },

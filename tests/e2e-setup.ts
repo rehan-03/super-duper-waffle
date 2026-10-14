@@ -32,6 +32,34 @@ export default async function () {
       passwordHash: hash,
     },
   });
+  const demoHash = await hashPassword("AlgoLearn-demo-2026");
+  const demoStudent = await db.user.create({
+    data: {
+      email: "student@demo.algolearn.local",
+      name: "Demo Student",
+      role: "STUDENT",
+      status: "ACTIVE",
+      passwordHash: demoHash,
+    },
+  });
+  const demoFaculty = await db.user.create({
+    data: {
+      email: "faculty@demo.algolearn.local",
+      name: "Demo Faculty",
+      role: "FACULTY",
+      status: "ACTIVE",
+      passwordHash: demoHash,
+    },
+  });
+  await db.user.create({
+    data: {
+      email: "admin@demo.algolearn.local",
+      name: "Demo Administrator",
+      role: "ADMIN",
+      status: "ACTIVE",
+      passwordHash: demoHash,
+    },
+  });
   const subject = await db.subject.findFirstOrThrow({
     where: { code: "2300118A" },
   });
@@ -45,6 +73,8 @@ export default async function () {
         create: [
           { userId: student.id, memberRole: "STUDENT" },
           { userId: faculty.id, memberRole: "FACULTY" },
+          { userId: demoStudent.id, memberRole: "STUDENT" },
+          { userId: demoFaculty.id, memberRole: "FACULTY" },
         ],
       },
     },
@@ -64,6 +94,9 @@ export default async function () {
       objectives: ["Find the first matching index"],
       prerequisiteKeys: [],
       reviewed: true,
+      visualizerKey: "linear-search",
+      reviewerId: faculty.id,
+      reviewedAt: new Date(),
       sourceSubjectId: subject.id,
       sourcePages: [42],
     },
@@ -110,6 +143,14 @@ export default async function () {
         },
       },
     });
+  await db.problem.updateMany({
+    where: { topicId: topic.id },
+    data: { reviewed: true, reviewerId: faculty.id, reviewedAt: new Date() },
+  });
+  await db.question.updateMany({
+    where: { topicId: topic.id },
+    data: { reviewerId: faculty.id, reviewedAt: new Date() },
+  });
   await db.courseRevision.update({
     where: { id: revision.id },
     data: { status: "PUBLISHED", publishedAt: new Date() },
@@ -117,6 +158,91 @@ export default async function () {
   await db.course.update({
     where: { id: course.id },
     data: { publishedRevisionId: revision.id },
+  });
+  const sqlSubject = await db.subject.findFirstOrThrow({
+    where: { code: "2301304" },
+  });
+  const activityCourse = await db.course.create({
+    data: {
+      code: "ACTIVITY-BROWSER",
+      title: "Activity browser fixtures",
+      term: "Automated test only",
+      createdAt: new Date("2000-01-01"),
+      subjects: {
+        create: [{ subjectId: subject.id }, { subjectId: sqlSubject.id }],
+      },
+      memberships: {
+        create: [
+          {
+            userId: student.id,
+            memberRole: "STUDENT",
+            createdAt: new Date("2000-01-01"),
+          },
+          {
+            userId: faculty.id,
+            memberRole: "FACULTY",
+            createdAt: new Date("2000-01-01"),
+          },
+        ],
+      },
+    },
+  });
+  const activityRevision = await db.courseRevision.create({
+    data: { courseId: activityCourse.id, number: 1 },
+  });
+  for (const [key, title, requirements, sourceId, pages, blocked] of [
+    [
+      "theory-fixture",
+      "Theory activity fixture",
+      ["LESSON"],
+      subject.id,
+      [42],
+      [],
+    ],
+    [
+      "practical-fixture",
+      "SQL practical fixture",
+      ["LESSON", "PRACTICAL"],
+      sqlSubject.id,
+      [10],
+      [
+        {
+          activity: "PRACTICAL",
+          reason:
+            "An isolated SQL database and practical evidence workflow are not configured.",
+        },
+      ],
+    ],
+  ] as const) {
+    await db.courseTopic.create({
+      data: {
+        revisionId: activityRevision.id,
+        key,
+        title,
+        unitLabel: "Activity test fixture",
+        position: key === "theory-fixture" ? 1 : 2,
+        lesson:
+          "Test-only original explanatory lesson with a worked example. Completion requires only the activities declared for this fixture.",
+        objectives: ["Explain the test fixture"],
+        prerequisiteKeys: [],
+        sourceSubjectId: sourceId,
+        sourcePages: [...pages],
+        visualizerKey: null,
+        requiredActivities: [...requirements],
+        blockedActivities: JSON.parse(JSON.stringify(blocked)),
+        reviewed: true,
+        reviewerId: faculty.id,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+  await db.courseRevision.update({
+    where: { id: activityRevision.id },
+    data: { status: "PUBLISHED", publishedAt: new Date() },
+  });
+  await db.course.update({
+    where: { id: activityCourse.id },
+    data: { publishedRevisionId: activityRevision.id },
   });
   await db.$disconnect();
 }

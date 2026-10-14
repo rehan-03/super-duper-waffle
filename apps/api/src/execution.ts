@@ -11,6 +11,7 @@ import {
   type AuthRequest,
 } from "./http.js";
 import { topicAccess } from "./learning.js";
+import { blocks } from "./content-validation.js";
 import { executionConfigured, executorTimeout } from "./execution-config.js";
 export const executionRouter = Router();
 const languages = ["c", "cpp", "java", "python"] as const;
@@ -58,6 +59,8 @@ async function problemAccess(
   if (req.auth!.user.role === "STUDENT" && !p.reviewed)
     throw new ApiError(404, "NOT_FOUND", "Problem not found.");
   await topicAccess(req, p.topicId, write);
+  if (write && blocks(p.topic.blockedActivities).some(b => b.activity === "CODING"))
+    throw new ApiError(409, "ACTIVITY_UNAVAILABLE", "This coding activity requires unsupported infrastructure.");
   return p;
 }
 executionRouter.get("/problems/:id", async (req: AuthRequest, res) => {

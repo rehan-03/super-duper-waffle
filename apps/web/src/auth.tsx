@@ -25,6 +25,21 @@ type Auth = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
+const demoPassword = "AlgoLearn-demo-2026";
+const demoAccounts = [
+  { role: "Student", email: "student@demo.algolearn.local" },
+  { role: "Faculty", email: "faculty@demo.algolearn.local" },
+  { role: "Administrator", email: "admin@demo.algolearn.local" },
+] as const;
+function fillDemoCredentials(form: HTMLFormElement | null, email: string) {
+  const emailInput = form?.elements.namedItem("email"),
+    passwordInput = form?.elements.namedItem("password");
+  if (emailInput instanceof HTMLInputElement) emailInput.value = email;
+  if (passwordInput instanceof HTMLInputElement) {
+    passwordInput.value = demoPassword;
+    passwordInput.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
 const context = createContext<Auth | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null),
@@ -202,6 +217,35 @@ export function AuthPage() {
                     ? "Enter your details. Your activation link lets you verify your email and choose a password."
                     : "Log in to your learning workspace."}
           </p>
+          {mode === "login" && import.meta.env.DEV && (
+            <section className="demo-credentials" aria-labelledby="demo-title">
+              <div>
+                <strong id="demo-title">Local demo accounts</strong>
+                <span>Development only</span>
+              </div>
+              <p>
+                Password: <code>{demoPassword}</code>
+              </p>
+              <div className="demo-account-list">
+                {demoAccounts.map((account) => (
+                  <button
+                    type="button"
+                    key={account.role}
+                    onClick={(event) =>
+                      fillDemoCredentials(
+                        event.currentTarget.form,
+                        account.email,
+                      )
+                    }
+                  >
+                    <strong>{account.role}</strong>
+                    <span>{account.email}</span>
+                  </button>
+                ))}
+              </div>
+              <small>Select a role to fill the login form.</small>
+            </section>
+          )}
           {error && <Alert>{error}</Alert>}
           {message ? (
             <div className="notice" role="status">

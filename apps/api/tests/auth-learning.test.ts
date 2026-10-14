@@ -80,6 +80,24 @@ test("roles, origin and CSRF are enforced server-side", async () => {
     ).status,
     403,
   );
+  assert.equal(
+    (
+      await request(app)
+        .post("/api/v1/auth/login")
+        .set("Origin", "http://127.0.0.1:5173")
+        .send({ email: "missing@fixture.example", password })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await request(app)
+        .post("/api/v1/auth/login")
+        .set("Origin", "http://127.0.0.1:5174")
+        .send({ email: "missing@fixture.example", password })
+    ).status,
+    403,
+  );
 });
 test("public signup verifies email before setting a password and cannot overwrite accounts or grant roles", async () => {
   const email = `signup-${crypto.randomUUID()}@fixture.example`;
@@ -323,6 +341,8 @@ test("draft content validates before publication and published content is immuta
           correctOption: 0,
           explanation: "The first occurrence is at index zero.",
           reviewed: true,
+          reviewerId: users.faculty,
+          reviewedAt: new Date(),
         },
       });
   for (let n = 0; n < 2; n++) {
@@ -332,7 +352,12 @@ test("draft content validates before publication and published content is immuta
         title: `Fixture first occurrence ${n}`,
         statement:
           "Read values and a target, then print the first matching zero-based index or -1. This statement belongs only to automated tests.",
-        starterCodes: { c: "", cpp: "", java: "", python: "" },
+        starterCodes: {
+          c: "// test starter",
+          cpp: "// test starter",
+          java: "// test starter",
+          python: "# test starter",
+        },
         reviewed: true,
         tests: {
           create: Array.from({ length: 8 }, (_, i) => ({
@@ -342,6 +367,14 @@ test("draft content validates before publication and published content is immuta
             hidden: i >= 3,
           })),
         },
+      },
+    });
+    await db.problem.update({
+      where: { id: p.id },
+      data: {
+        reviewed: true,
+        reviewerId: users.faculty,
+        reviewedAt: new Date(),
       },
     });
     if (n === 0) problemId = p.id;
@@ -480,6 +513,8 @@ test("publication locks block concurrent edits and empty-course analytics retain
       completed: 0,
       weak: 0,
       insufficientEvidence: 0,
+      requiredActivities: ["LESSON", "QUIZ", "CODING"],
+      blockedActivities: [],
     },
   ]);
 });

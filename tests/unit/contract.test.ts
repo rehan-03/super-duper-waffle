@@ -7,11 +7,12 @@ test("the OpenAPI contract covers every implemented route and its path parameter
     ["app.ts", ""],
     ["auth.ts", "/auth"],
     ["learning.ts", ""],
+    ["content-router.ts", ""],
     ["execution.ts", ""],
   ]) {
     const source = readFileSync(`apps/api/src/${file}`, "utf8");
     for (const match of source.matchAll(
-      /(?:app|authRouter|learningRouter|executionRouter)\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g,
+      /(?:app|authRouter|learningRouter|contentRouter|executionRouter)\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g,
     )) {
       const method = match[1]!,
         path = (prefix + match[2]!.replace(/^\/api\/v1/, "")).replace(
@@ -30,5 +31,5 @@ test("the OpenAPI contract covers every implemented route and its path parameter
       operations++;
     }
   }
-  expect(operations).toBe(58);
+  expect(operations).toBe(64);
 });

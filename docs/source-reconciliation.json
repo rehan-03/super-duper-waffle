@@ -1,0 +1,140 @@
+{
+  "sources": [
+    {
+      "filename": "1781009701_ty-2023-pattern-computer-engineering-merged (1).pdf",
+      "sha256": "f46c4cc14b00198cbce5a634aee61d20bde804d4e527fa73c9320e45e54c40b2",
+      "pages": 65,
+      "textDifferencePages": [
+        24,
+        25
+      ]
+    },
+    {
+      "filename": "1781009781_be-2023-syllabus-merged.pdf",
+      "sha256": "af4a3ce945e492016038836e3a07822a7921246481d3684e868a6bce97bd7e9e",
+      "pages": 40,
+      "textDifferencePages": []
+    },
+    {
+      "filename": "fy-2023.pdf",
+      "sha256": "3228c28371c0fbec1f395009107cc68543aab1c2f27ce4c2a5ccf8113508e627",
+      "pages": 60,
+      "textDifferencePages": [
+        7,
+        10,
+        11,
+        12,
+        13,
+        14,
+        16,
+        20,
+        23,
+        30,
+        33,
+        34,
+        35,
+        40,
+        41,
+        44,
+        45,
+        48,
+        56,
+        59
+      ]
+    },
+    {
+      "filename": "sy-2023.pdf",
+      "sha256": "6b5eb9eb0a4b2c61b8f0a7ae1115e79875dd213c238f444843ad4c8dac1bf3e3",
+      "pages": 64,
+      "textDifferencePages": [
+        8,
+        12,
+        37
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "code": "23014010",
+      "source": "1781009781_be-2023-syllabus-merged.pdf",
+      "pages": [
+        29,
+        30
+      ],
+      "issue": "Detail heading says 23014010; same-document semester scheme says 2301410. Older embedded scheme in SY PDF says 2301411. Canonical code awaits faculty confirmation."
+    },
+    {
+      "code": "2301209",
+      "source": "sy-2023.pdf",
+      "pages": [
+        34,
+        35
+      ],
+      "issue": "Only three content units provided; evaluation guidelines refer to Units IV and V. Do not invent missing content."
+    },
+    {
+      "code": "2301212",
+      "source": "sy-2023.pdf",
+      "pages": [
+        42,
+        43
+      ],
+      "issue": "Companion course field incorrectly associates 2301214 with Data Structures Lab; roster and detailed lab identify 2301215."
+    },
+    {
+      "code": "2301215",
+      "source": "sy-2023.pdf",
+      "pages": [
+        49,
+        53
+      ],
+      "issue": "Companion field says 2301211: Data Structures; detailed theory heading is 2301212."
+    },
+    {
+      "code": "2301220",
+      "source": "sy-2023.pdf",
+      "pages": [
+        64,
+        64
+      ],
+      "issue": "Detailed page provides scheme and objective only; no units or language topics supplied."
+    },
+    {
+      "code": "2301221",
+      "source": "sy-2023.pdf",
+      "pages": [
+        8,
+        8
+      ],
+      "issue": "Scheme entry only. Detailed syllabus/linked external content was not supplied."
+    },
+    {
+      "code": "2301222",
+      "source": "sy-2023.pdf",
+      "pages": [
+        8,
+        8
+      ],
+      "issue": "Scheme entry only. Detailed syllabus/linked external content was not supplied."
+    },
+    {
+      "code": "2301321",
+      "source": "sy-2023.pdf",
+      "pages": [
+        12,
+        12
+      ],
+      "issue": "Scheme entry only. Detailed syllabus/linked external content was not supplied."
+    },
+    {
+      "code": "2301322",
+      "source": "sy-2023.pdf",
+      "pages": [
+        12,
+        12
+      ],
+      "issue": "Scheme entry only. Detailed syllabus/linked external content was not supplied."
+    }
+  ],
+  "visualReview": "Targeted visual review only; formulas and diagrams require faculty verification before publication."
+}

@@ -80,6 +80,11 @@ export function TopicPage() {
       topic: Topic;
       problems: { id: string; title: string }[];
       progress: Progress | null;
+      availability: {
+        quiz: boolean;
+        coding: boolean;
+        blocked: { activity: string; reason: string }[];
+      };
     }>(`/topics/${topicId}`),
     history = useData<{
       attempts: { id: string; status: string; score: number | null }[];
@@ -112,6 +117,14 @@ export function TopicPage() {
   if (q.error) return <ErrorState error={q.error} retry={q.refresh} />;
   const t = q.data!.topic,
     progress = q.data!.progress;
+  const names = [
+    "learn",
+    ...(t.visualizerKey ? ["visualize"] : []),
+    ...(t.requiredActivities.includes("QUIZ") ? ["quiz"] : []),
+    ...(t.requiredActivities.includes("CODING") || q.data!.problems.length
+      ? ["code"]
+      : []),
+  ];
   return (
     <>
       <Link className="breadcrumb" to={`/courses/${t.revision.courseId}`}>
@@ -120,7 +133,7 @@ export function TopicPage() {
       <Header
         eyebrow={`${t.unitLabel} · Revision ${t.revision.number}`}
         title={t.title}
-        description={algorithms[t.key as AlgorithmKey]?.complexity}
+        description={algorithms[t.visualizerKey as AlgorithmKey]?.complexity}
       />
       {t.revision.status !== "PUBLISHED" && (
         <div className="notice">
@@ -128,8 +141,18 @@ export function TopicPage() {
           publication.
         </div>
       )}
+      {q.data!.availability.blocked.map((b) => (
+        <p className="notice" key={b.activity}>
+          <strong>{readable(b.activity)} blocked:</strong> {b.reason}
+        </p>
+      ))}
+      <p className="source-note">
+        Source: {t.sourceSubject?.source.filename}, PDF pages{" "}
+        {t.sourcePages.join(", ")}. Required activities:{" "}
+        {t.requiredActivities.map(readable).join(", ")}.
+      </p>
       <div className="tabs" role="tablist" aria-label="Topic activities">
-        {["learn", "visualize", "quiz", "code"].map((name) => (
+        {names.map((name) => (
           <button
             id={`tab-${name}`}
             role="tab"
@@ -137,12 +160,12 @@ export function TopicPage() {
             aria-controls="topic-panel"
             tabIndex={tab === name ? 0 : -1}
             onKeyDown={(e) => {
-              const names = ["learn", "visualize", "quiz", "code"];
               let next = names.indexOf(name);
-              if (e.key === "ArrowRight") next = (next + 1) % 4;
-              else if (e.key === "ArrowLeft") next = (next + 3) % 4;
+              if (e.key === "ArrowRight") next = (next + 1) % names.length;
+              else if (e.key === "ArrowLeft")
+                next = (next + names.length - 1) % names.length;
               else if (e.key === "Home") next = 0;
-              else if (e.key === "End") next = 3;
+              else if (e.key === "End") next = names.length - 1;
               else return;
               e.preventDefault();
               setTab(names[next]!);
@@ -191,16 +214,25 @@ export function TopicPage() {
                     {progress.lessonAcknowledged ? "✓" : "○"} Lesson
                     acknowledged
                   </p>
-                  <p>{progress.quizSubmitted ? "✓" : "○"} Quiz submitted</p>
-                  <p>
-                    {progress.codingAccepted ? "✓" : "○"} One coding problem
-                    accepted
-                  </p>
+                  {t.requiredActivities.includes("QUIZ") && (
+                    <p>{progress.quizSubmitted ? "✓" : "○"} Quiz submitted</p>
+                  )}
+                  {t.requiredActivities.includes("CODING") && (
+                    <p>
+                      {progress.codingAccepted ? "✓" : "○"} One coding problem
+                      accepted
+                    </p>
+                  )}
+                  {t.requiredActivities.includes("PRACTICAL") && (
+                    <p>○ External practical: completion blocked</p>
+                  )}
                   <Badge>{readable(progress.state)}</Badge>
                   <p>
-                    {progress.score === null
-                      ? "Insufficient evidence for mastery"
-                      : `Estimated mastery ${progress.score}%`}{" "}
+                    {!t.requiredActivities.includes("QUIZ")
+                      ? "Quiz mastery is not applicable to this topic"
+                      : progress.score === null
+                        ? "Insufficient evidence for mastery"
+                        : `Estimated mastery ${progress.score}%`}{" "}
                     · {progress.evidenceCount} distinct answered families
                   </p>
                 </>
@@ -212,14 +244,14 @@ export function TopicPage() {
         ) : tab === "visualize" ? (
           <Suspense fallback={<Loading />}>
             <Visualizer
-              key={t.key}
-              algorithm={t.key as AlgorithmKey}
+              key={t.visualizerKey}
+              algorithm={t.visualizerKey as AlgorithmKey}
               mappedSource={{
                 code: t.sourceSubject?.code ?? "Official source",
                 title: t.sourceSubject?.title ?? t.unitLabel,
                 filename:
                   t.sourceSubject?.source.filename ??
-                  algorithms[t.key as AlgorithmKey].syllabus.source,
+                  algorithms[t.visualizerKey as AlgorithmKey].syllabus.source,
                 pages: t.sourcePages,
               }}
             />
@@ -232,7 +264,10 @@ export function TopicPage() {
               after submission.
             </p>
             {user!.role === "STUDENT" ? (
-              <Button disabled={busy} onClick={() => action(true)}>
+              <Button
+                disabled={busy || !q.data!.availability.quiz}
+                onClick={() => action(true)}
+              >
                 Start or resume quiz
               </Button>
             ) : (

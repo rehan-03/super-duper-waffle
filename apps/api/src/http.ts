@@ -84,10 +84,28 @@ export const requireRole =
 export function checkOrigin(req: Request, _res: Response, next: NextFunction) {
   if (
     ["POST", "PUT", "PATCH", "DELETE"].includes(req.method) &&
-    req.get("origin") !== config.APP_ORIGIN
+    !allowedOrigin(req.get("origin"))
   )
     throw new ApiError(403, "ORIGIN", "This request must come from AlgoLearn.");
   next();
+}
+function allowedOrigin(origin: string | undefined) {
+  if (origin === config.APP_ORIGIN) return true;
+  if (!origin || config.NODE_ENV === "production") return false;
+  try {
+    const expected = new URL(config.APP_ORIGIN),
+      candidate = new URL(origin),
+      loopbackHosts = new Set(["localhost", "127.0.0.1"]);
+    return (
+      candidate.origin === origin &&
+      loopbackHosts.has(expected.hostname) &&
+      loopbackHosts.has(candidate.hostname) &&
+      candidate.protocol === expected.protocol &&
+      candidate.port === expected.port
+    );
+  } catch {
+    return false;
+  }
 }
 export function csrf(req: AuthRequest, _res: Response, next: NextFunction) {
   if (
