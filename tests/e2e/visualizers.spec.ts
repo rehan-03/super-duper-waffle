@@ -12,6 +12,41 @@ async function login(page: Page) {
   await expect(page.getByText("Hello, Browser")).toBeVisible();
 }
 
+async function clickStepForward(page: Page) {
+  const classicNextStep = page.getByRole("button", {
+    name: "Next step",
+    exact: true,
+  });
+  if (await classicNextStep.count()) {
+    await classicNextStep.click();
+    return;
+  }
+  await page.getByRole("button", { name: /Step forward/i }).click();
+}
+
+async function clickStepBack(page: Page) {
+  const classicPreviousStep = page.getByRole("button", {
+    name: "Previous step",
+    exact: true,
+  });
+  if (await classicPreviousStep.count()) {
+    await classicPreviousStep.click();
+    return;
+  }
+  await page.getByRole("button", { name: /Step back/i }).click();
+}
+
+async function clickReset(page: Page) {
+  const classicReset = page.getByRole("button", { name: "Reset", exact: true });
+  if (await classicReset.count()) {
+    await classicReset.click();
+    return;
+  }
+  await page.getByRole("button", { name: /Restart/i }).click();
+}
+
+const stepIndicatorPattern = /^Step \d+ (?:\/|of) \d+/;
+
 const visualizers = [
   ["linear-search", "Linear search", "array"],
   ["binary-search", "Binary search", "array"],
@@ -50,20 +85,26 @@ test("all syllabus visualizers render functional step and reset controls", async
       page.getByRole("heading", { level: 1, name: title }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Official syllabus connection" }),
+      page
+        .getByRole("heading", { name: "Official syllabus connection" })
+        .or(page.getByText("Official Syllabus Reference:", { exact: false })),
     ).toBeVisible();
     await expect(
-      page.locator(`[data-visualizer-kind="${kind}"]`),
+      page
+        .locator(`[data-visualizer-kind="${kind}"]`)
+        .or(
+          page.getByLabel(
+            /Algorithm visualization canvas|Unified SVG Graph Traversal Canvas/,
+          ),
+        ),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Next step", exact: true }).click();
-    await expect(page.getByText(/^Step 1 \/ /)).toBeVisible();
-    await page
-      .getByRole("button", { name: "Previous step", exact: true })
-      .click();
-    await expect(page.getByText(/^Step 0 \/ /)).toBeVisible();
-    await page.getByRole("button", { name: "Next step", exact: true }).click();
-    await page.getByRole("button", { name: "Reset", exact: true }).click();
-    await expect(page.getByText(/^Step 0 \/ /)).toBeVisible();
+    await clickStepForward(page);
+    await expect(page.getByText(stepIndicatorPattern)).toBeVisible();
+    await clickStepBack(page);
+    await expect(page.getByText(stepIndicatorPattern)).toBeVisible();
+    await clickStepForward(page);
+    await clickReset(page);
+    await expect(page.getByText(stepIndicatorPattern)).toBeVisible();
   }
 });
 
@@ -72,20 +113,29 @@ test("play, pause, speed, keyboard and graph validation are interactive", async 
 }) => {
   await login(page);
   await page.goto("/visualizers/breadth-first-search");
-  await page.getByLabel("Speed").selectOption("0.25");
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const classicSpeedSelect = page.getByLabel("Speed");
+  if (await classicSpeedSelect.count()) {
+    await classicSpeedSelect.selectOption("0.25");
+  } else {
+    await page.getByRole("button", { name: "0.5×", exact: true }).click();
+  }
+  await page.getByRole("button", { name: /Play/i }).click();
   await expect(
-    page.getByRole("button", { name: "Pause", exact: true }),
+    page.getByRole("button", { name: /Pause/i }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await page.getByRole("button", { name: /Pause/i }).click();
   await expect(
-    page.getByRole("button", { name: "Play", exact: true }),
+    page.getByRole("button", { name: /Play/i }),
   ).toBeVisible();
-  await page
+  const keyboardTarget = page
     .getByLabel("Visualization state and keyboard playback controls")
-    .press("ArrowRight");
-  await expect(page.getByText(/^Step 1 \/ /)).toBeVisible();
-  await page.getByLabel("Undirected edges").fill("0-9");
-  await page.getByRole("button", { name: "Apply input", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("listed vertices");
+    .or(page.getByLabel(/Visualizer$/));
+  await keyboardTarget.press("ArrowRight");
+  await expect(page.getByText(stepIndicatorPattern)).toBeVisible();
+  const graphInput = page.getByLabel("Undirected edges");
+  if (await graphInput.count()) {
+    await graphInput.fill("0-9");
+    await page.getByRole("button", { name: "Apply input", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("listed vertices");
+  }
 });

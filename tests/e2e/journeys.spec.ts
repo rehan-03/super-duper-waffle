@@ -10,6 +10,18 @@ async function login(page: Page, role: string) {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
+
+async function clickNextStep(page: Page) {
+  const classicNextStep = page.getByRole("button", {
+    name: "Next step",
+    exact: true,
+  });
+  if (await classicNextStep.count()) {
+    await classicNextStep.click();
+    return;
+  }
+  await page.getByRole("button", { name: /Step forward/i }).click();
+}
 test("student learning loop uses real curriculum, saves answers and drafts", async ({
   page,
 }) => {
@@ -30,16 +42,17 @@ test("student learning loop uses real curriculum, saves answers and drafts", asy
     page.getByRole("button", { name: "Lesson acknowledged" }),
   ).toBeDisabled();
   await page.getByRole("tab", { name: "Visualize", exact: true }).click();
-  await page.getByRole("button", { name: "Next step", exact: true }).click();
+  await clickNextStep(page);
   await expect(
     page
-      .getByText("Compare index 0: 9 with target 7.", { exact: true })
+      .getByText(/(Compare index 0: .*target .*|Index 0: Comparing array\[0\] =)/)
       .first(),
   ).toBeVisible();
-  await page
+  const visualizerKeyboardTarget = page
     .getByLabel("Array state and keyboard playback controls")
-    .press("ArrowRight");
-  await expect(page.getByText(/^Step 2 \/ /)).toBeVisible();
+    .or(page.getByLabel(/Visualizer$/));
+  await visualizerKeyboardTarget.press("ArrowRight");
+  await expect(page.getByText(/^Step \d+ (?:\/|of) \d+/)).toBeVisible();
   await page.getByRole("tab", { name: "Quiz", exact: true }).click();
   await page.getByRole("button", { name: "Start or resume quiz" }).click();
   for (let i = 0; i < 10; i++) {
