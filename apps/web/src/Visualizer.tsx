@@ -9,6 +9,8 @@ import {
 } from "@algolearn/shared";
 import { Alert, Badge, Button, Card, Field } from "./ui";
 import { StructureView } from "./StructureView";
+import { VisualizerEngine } from "./visualizer/VisualizerEngine";
+import { sortingAndSearchingAlgorithms } from "./visualizer/algorithms";
 
 export type VisualizerSource = {
   code: string;
@@ -80,6 +82,31 @@ export default function Visualizer({
   algorithm: AlgorithmKey;
   mappedSource?: VisualizerSource;
 }) {
+  const customAlgo = sortingAndSearchingAlgorithms[algorithm];
+  if (customAlgo) {
+    const syllabus = algorithms[algorithm]?.syllabus;
+    const syllabusElement = syllabus ? (
+      <div className="algo-syllabus-box">
+        <div className="algo-syllabus-title">
+          <strong>Official Syllabus Reference:</strong> {syllabus.subjectCode} · {syllabus.subjectTitle} ({syllabus.unit})
+        </div>
+        <div className="algo-syllabus-details">
+          Source: {syllabus.source} · PDF page(s) {syllabus.pages.join(", ")}
+          {mappedSource && (
+            <span> · Topic: {mappedSource.code} ({mappedSource.title})</span>
+          )}
+        </div>
+      </div>
+    ) : null;
+
+    return (
+      <VisualizerEngine
+        algorithm={customAlgo}
+        mappedSourceNote={syllabusElement}
+      />
+    );
+  }
+
   const initial = defaults(algorithm);
   const [input, setInput] = useState(initial.input),
     [target, setTarget] = useState(initial.target),

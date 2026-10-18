@@ -14,7 +14,7 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
-import { motion } from "motion/react";
+import { motion, AnimatePresence, useScroll, useSpring } from "motion/react";
 import {
   BookOpen,
   GraduationCap,
@@ -28,6 +28,13 @@ import {
   ChartNoAxesCombined,
   Settings,
   FileClock,
+  Trophy,
+  Award,
+  Map,
+  Megaphone,
+  Bell,
+  HelpCircle,
+  ChevronUp,
 } from "lucide-react";
 import { AuthPage, LocalMailPreviewPage, useAuth } from "./auth";
 import { Alert, Button, Empty, Loading } from "./ui";
@@ -53,7 +60,68 @@ import {
 import { ContentPage, StudentsPage, StudentDetailPage } from "./faculty-pages";
 import type { Role } from "./types";
 import CoveragePage from "./CoveragePage";
+import {
+  LeaderboardPage,
+  AchievementsPage,
+  RoadmapPage,
+  AnnouncementsPage,
+  NotificationsPage,
+  HelpPage,
+  NotFoundPage,
+} from "./extra-pages";
 const CodingPage = lazy(() => import("./CodingPage"));
+
+/** Scroll progress bar fixed at top of viewport */
+function ScrollProgressBar() {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 200, damping: 30 });
+  return (
+    <motion.div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        background: "#4338ca",
+        transformOrigin: "0%",
+        scaleX,
+        zIndex: 1000,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/** Back-to-top floating button */
+function BackToTop() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById("main-content");
+    if (!el) return;
+    const handler = () => setVisible(el.scrollTop > 400 || window.scrollY > 400);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.button
+          className="back-to-top"
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.7 }}
+          transition={{ duration: 0.2 }}
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Scroll to top"
+          title="Back to top"
+        >
+          <ChevronUp size={20} />
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+}
 function Guard({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { user } = useAuth();
   return user && roles.includes(user.role) ? (
@@ -146,6 +214,12 @@ function Shell() {
           { to: "/admin/audit", label: "Audit history", Icon: FileClock },
         ]
       : []),
+    { to: "/leaderboard", label: "Leaderboard", Icon: Trophy },
+    { to: "/achievements", label: "Achievements", Icon: Award },
+    { to: "/roadmap", label: "Roadmap", Icon: Map },
+    { to: "/announcements", label: "Announcements", Icon: Megaphone },
+    { to: "/notifications", label: "Notifications", Icon: Bell },
+    { to: "/help", label: "Help & FAQ", Icon: HelpCircle },
     { to: "/account", label: "Account", Icon: Settings },
   ];
   async function signOut() {
@@ -157,6 +231,7 @@ function Shell() {
   }
   return (
     <div className="app-shell">
+      <ScrollProgressBar />
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -196,8 +271,20 @@ function Shell() {
         <nav>
           {links.map(({ to, label, Icon }) => (
             <NavLink to={to} end={to === "/"} key={to} title={label}>
-              <Icon size={19} aria-hidden="true" />
-              <span>{label}</span>
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="nav-active-pill"
+                      transition={{ type: "spring", stiffness: 380, damping: 34 }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <Icon size={19} aria-hidden="true" />
+                  <span>{label}</span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -239,9 +326,10 @@ function Shell() {
           {error && <Alert>{error}</Alert>}
           <motion.div
             key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
             <Suspense fallback={<Loading />}>
               <Outlet />
@@ -249,6 +337,7 @@ function Shell() {
           </motion.div>
         </main>
         <footer>AlgoLearn · Curriculum-integrated learning</footer>
+        <BackToTop />
       </div>
     </div>
   );
@@ -370,17 +459,14 @@ export function App() {
           }
         />
         <Route path="account" element={<AccountPage />} />
-        <Route
-          path="*"
-          element={
-            <Empty title="Page not found">
-              <p>Use the navigation to return to your workspace.</p>
-              <Button kind="secondary" onClick={() => history.back()}>
-                Go back
-              </Button>
-            </Empty>
-          }
-        />
+        {/* ── New pages ── */}
+        <Route path="leaderboard" element={<LeaderboardPage />} />
+        <Route path="achievements" element={<AchievementsPage />} />
+        <Route path="roadmap" element={<RoadmapPage />} />
+        <Route path="announcements" element={<AnnouncementsPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="help" element={<HelpPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );
