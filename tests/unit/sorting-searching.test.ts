@@ -12,7 +12,6 @@ import {
   binarySearchDefinition,
   bfsDefinition,
   dfsDefinition,
-  sortingAndSearchingAlgorithms,
 } from "../../apps/web/src/visualizer/algorithms";
 import { generateArray } from "../../apps/web/src/visualizer/array-generator";
 

@@ -29,13 +29,12 @@ export const radixSortDefinition: AlgorithmDefinition = {
     const minVal = Math.min(...initialValues);
     const offset = minVal < 0 ? Math.abs(minVal) : 0;
     const a = initialValues.map((v) => v + offset);
-    const original = [...initialValues];
     const keys = a.map((val, idx) => `item-${idx}-${val}`);
 
     const steps: VisualizerStep[] = [];
-    let comparisons = 0;
-    let swaps = 0;
-    let shifts = 0;
+    const comparisons = 0;
+    const swaps = 0;
+    const shifts = 0;
     let writes = 0;
     let operations = 0;
     let stepCount = 0;

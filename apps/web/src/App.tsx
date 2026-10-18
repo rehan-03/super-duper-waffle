@@ -37,7 +37,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { AuthPage, LocalMailPreviewPage, useAuth } from "./auth";
-import { Alert, Button, Empty, Loading } from "./ui";
+import { Alert, Empty, Loading } from "./ui";
 import {
   DashboardPage,
   CoursesPage,

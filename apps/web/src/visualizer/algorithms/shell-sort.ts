@@ -33,7 +33,7 @@ export const shellSortDefinition: AlgorithmDefinition = {
 
     const steps: VisualizerStep[] = [];
     let comparisons = 0;
-    let swaps = 0;
+    const swaps = 0;
     let shifts = 0;
     let writes = 0;
     let operations = 0;

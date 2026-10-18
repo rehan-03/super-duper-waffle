@@ -32,9 +32,9 @@ export const linearSearchDefinition: AlgorithmDefinition = {
 
     const steps: VisualizerStep[] = [];
     let comparisons = 0;
-    let swaps = 0;
-    let shifts = 0;
-    let writes = 0;
+    const swaps = 0;
+    const shifts = 0;
+    const writes = 0;
     let operations = 0;
     let stepCount = 0;
 
@@ -72,7 +72,6 @@ export const linearSearchDefinition: AlgorithmDefinition = {
       { pointer: 0 },
     );
 
-    let matchIdx = -1;
 
     for (let i = 0; i < n; i++) {
       comparisons++;
@@ -97,7 +96,6 @@ export const linearSearchDefinition: AlgorithmDefinition = {
       );
 
       if (isMatch) {
-        matchIdx = i;
         recordStep(
           "complete",
           [i],
